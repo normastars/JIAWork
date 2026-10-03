@@ -5,6 +5,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 import type { ShellGetBrowserAppsInput } from '../shared/shell/constants';
+import { APP_NAME } from './appConstants';
 
 export interface AppInfo {
   name: string;
@@ -265,7 +266,7 @@ async function ensureBrowserProbeFile(): Promise<void> {
   try {
     await fs.promises.writeFile(
       BROWSER_APPS_PROBE_FILE,
-      '<!doctype html><meta charset="utf-8"><title>LobsterAI browser probe</title>',
+      `<!doctype html><meta charset="utf-8"><title>${APP_NAME} browser probe</title>`,
       'utf8',
     );
   } catch {

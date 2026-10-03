@@ -2,6 +2,7 @@ import { app } from 'electron';
 import fs from 'fs';
 import path from 'path';
 
+import type { EnterpriseWorkbenchConfig } from '../../shared/enterprise/workbench';
 import type { IMStore } from '../im/imStore';
 import type { PopoInstanceConfig } from '../im/types';
 import type { SqliteStore } from '../sqliteStore';
@@ -11,8 +12,10 @@ export type EnterpriseUIAction = 'hide' | 'disable' | 'readonly';
 export type EnterpriseManifest = {
   version: string;
   name: string;
+  language?: 'zh' | 'en';
   ui?: Record<string, EnterpriseUIAction>;
   disableUpdate?: boolean;
+  disableTelemetry?: boolean;
   /**
    * Windows only: forbid the update installer from adding Windows Defender
    * exclusions during installation (passed through as /NoDefenderExclusion).
@@ -27,6 +30,7 @@ export type EnterpriseManifest = {
     plugins?: boolean | 'merge' | 'overwrite';
   };
   autoAcceptPrivacy?: boolean;
+  workbench?: EnterpriseWorkbenchConfig;
 };
 
 export type EnterpriseAgentConfig = {
@@ -41,6 +45,17 @@ export type EnterpriseAgentConfig = {
   skillIds: string[];
   enabled: boolean;
   isDefault: boolean;
+};
+
+export type EnterpriseMcpServerConfig = {
+  name: string;
+  description: string;
+  transportType: string;
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  headers?: Record<string, string>;
 };
 
 const SANDBOX_MODE_MAP: Record<string, string> = {
@@ -305,7 +320,7 @@ export function syncEnterpriseConfig(
   configPath: string,
   store: SqliteStore,
   imStore: IMStore,
-  mcpUpsertByName: (server: { name: string; description: string; transportType: string; command?: string; args?: string[]; env?: Record<string, string> }) => void,
+  mcpUpsertByName: (server: EnterpriseMcpServerConfig) => void,
   mcpClearAll: () => void,
   coworkSetConfig: (config: Record<string, string>) => void,
   getWorkingDirectory: () => string | undefined,
@@ -956,7 +971,7 @@ function syncAgents(configPath: string, workspaceDir: string | undefined, force:
 
 function syncMcpServers(
   configPath: string,
-  upsertByName: (server: { name: string; description: string; transportType: string; command?: string; args?: string[]; env?: Record<string, string> }) => void,
+  upsertByName: (server: EnterpriseMcpServerConfig) => void,
   clearAll: () => void,
   mode: 'merge' | 'overwrite',
 ): void {
@@ -968,14 +983,7 @@ function syncMcpServers(
 
   try {
     const raw = fs.readFileSync(mcpPath, 'utf-8');
-    const servers = JSON.parse(raw) as Array<{
-      name: string;
-      description: string;
-      transportType: string;
-      command?: string;
-      args?: string[];
-      env?: Record<string, string>;
-    }>;
+    const servers = JSON.parse(raw) as Array<Partial<EnterpriseMcpServerConfig>>;
 
     if (!Array.isArray(servers)) {
       console.warn('[Enterprise] mcp/servers.json is not an array, skipping');
@@ -1000,6 +1008,8 @@ function syncMcpServers(
           command: server.command,
           args: server.args,
           env: server.env,
+          url: server.url,
+          headers: server.headers,
         });
         syncedCount++;
       } catch (error) {

@@ -15,6 +15,7 @@
  *
  * Environment variables:
  *   OPENCLAW_SKIP_PLUGINS          – Set to "1" to skip this script entirely
+ *   OPENCLAW_SKIP_OPTIONAL_PLUGINS – Set to "1" to skip optional plugins
  *   OPENCLAW_FORCE_PLUGIN_INSTALL  – Set to "1" to force re-download all plugins
  */
 
@@ -602,6 +603,7 @@ function main() {
   }
 
   const forceInstall = process.env.OPENCLAW_FORCE_PLUGIN_INSTALL === '1';
+  const skipOptionalPlugins = process.env.OPENCLAW_SKIP_OPTIONAL_PLUGINS === '1';
   const pluginCacheBase = path.join(rootDir, 'vendor', 'openclaw-plugins');
   const runtimeCurrentDir = path.join(rootDir, 'vendor', 'openclaw-runtime', 'current');
   // Third-party plugins go into `third-party-extensions/` — a directory the gateway's
@@ -626,6 +628,11 @@ function main() {
     const targetDir = path.join(runtimeExtensionsDir, id);
 
     log(`--- Plugin: ${id} (${npmSpec}@${version}) ---`);
+
+    if (optional && skipOptionalPlugins) {
+      log(`Skipping ${id} — optional plugin omitted for this build.`);
+      continue;
+    }
 
     // Check cache
     let needsDownload = true;

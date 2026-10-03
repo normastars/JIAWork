@@ -33,6 +33,7 @@ import { apiService } from '../services/api';
 import { configService } from '../services/config';
 import { coworkService } from '../services/cowork';
 import { decryptSecret, decryptWithPassword, EncryptedPayload, encryptWithPassword, PasswordEncryptedPayload } from '../services/encryption';
+import { fetchAllowedModels, resolveAllowedModels, syncEnterpriseAgentModels } from '../services/enterpriseModelAccess';
 import { i18nService, LanguageType } from '../services/i18n';
 import { imService } from '../services/im';
 import { LogReporterAction, reportYdAnalyzer } from '../services/logReporter';
@@ -65,9 +66,11 @@ import EditIcon from './icons/EditIcon';
 import MessageCopyIcon from './icons/MessageCopyIcon';
 import PlugIcon from './icons/PlugIcon';
 import PlusCircleIcon from './icons/PlusCircleIcon';
+import SkillIcon from './icons/SkillIcon';
 import IMSettings from './im/IMSettings';
 import PluginsSettings, { type PluginPendingChanges, type PluginsSettingsHandle } from './plugins/PluginsSettings';
 import BrowserWebAccessSettings from './settings/BrowserWebAccessSettings';
+import GardyModelConfig from './settings/GardyModelConfig';
 import {
   buildOpenAICompatibleChatCompletionsUrl,
   buildOpenAIConnectionTestRequestBody,
@@ -94,11 +97,12 @@ import {
 } from './settings/modelProviderUtils';
 import ModelSettingsSection, { DeleteProviderConfirmDialog, ModelEditorDialog } from './settings/ModelSettingsSection';
 import EmailSkillConfig from './skills/EmailSkillConfig';
+import SkillsManager from './skills/SkillsManager';
 import SkinPresentationScope from './skin/SkinPresentationScope';
 import SkinSettingsSection from './skin/SkinSettingsSection';
 import ThemedSelect from './ui/ThemedSelect';
 
-type TabType = 'general' | 'appearance' | 'coworkAgentEngine' | 'model' | 'browserWebAccess' | 'coworkMemory' | 'coworkDreaming' | 'shortcuts' | 'im' | 'email' | 'plugins' | 'about';
+type TabType = 'general' | 'appearance' | 'coworkAgentEngine' | 'model' | 'browserWebAccess' | 'coworkMemory' | 'coworkDreaming' | 'shortcuts' | 'im' | 'email' | 'plugins' | 'about' | 'skills';
 
 const waitForNextPaint = (): Promise<void> => new Promise(resolve => {
   window.requestAnimationFrame(() => {
@@ -895,13 +899,16 @@ export type SettingsOpenOptions = {
 };
 
 interface SettingsProps extends SettingsOpenOptions {
+  appName: string;
   onClose: () => void;
   onStartAiSkin?: (text: string, kitId: string) => void;
   initialTabRequestId?: number;
   onUpdateFound?: (info: AppUpdateInfo) => void;
   enterpriseConfig?: {
+    language?: LanguageType;
     ui?: Record<string, 'hide' | 'disable' | 'readonly'>;
     disableUpdate?: boolean;
+    disableTelemetry?: boolean;
   } | null;
 }
 
@@ -1367,6 +1374,7 @@ const SettingsNumberInputRow: React.FC<{
 );
 
 const Settings: React.FC<SettingsProps> = ({
+  appName,
   onClose,
   onStartAiSkin,
   initialTab,
@@ -1385,7 +1393,9 @@ const Settings: React.FC<SettingsProps> = ({
     selectThemeMode,
   } = useSkin();
   // 状态
-  const [activeTab, setActiveTab] = useState<TabType>(initialTab ?? 'general');
+  const [activeTab, setActiveTab] = useState<TabType>(
+    initialTab && enterpriseConfig?.ui?.[`settings.${initialTab}`] !== 'hide' ? initialTab : 'general',
+  );
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
   const [themeId, setThemeId] = useState<string>(themeService.getDefaultThemeId());
   const [uiFontSize, setUiFontSize] = useState<number>(FontPreferences.UiFontSizeDefault);
@@ -1396,6 +1406,7 @@ const Settings: React.FC<SettingsProps> = ({
   const [useSystemProxy, setUseSystemProxy] = useState(false);
   const [sqliteAutoBackupEnabled, setSqliteAutoBackupEnabled] = useState(false);
   const [usageAnalyticsEnabled, setUsageAnalyticsEnabled] = useState(true);
+  const isEnterpriseDistribution = enterpriseConfig?.ui?.login === 'hide';
   const [taskCompletionNotificationMode, setTaskCompletionNotificationMode] =
     useState<TaskCompletionNotificationMode>(TaskCompletionNotificationMode.Unfocused);
   const [permissionNotificationsEnabled, setPermissionNotificationsEnabled] = useState(true);
@@ -2273,10 +2284,12 @@ const Settings: React.FC<SettingsProps> = ({
   }, [buildNoticeMessage]);
 
   useEffect(() => {
-    if (initialTab) {
+    if (initialTab && enterpriseConfig?.ui?.[`settings.${initialTab}`] !== 'hide') {
       setActiveTab(initialTab);
+    } else if (initialTab) {
+      setActiveTab('general');
     }
-  }, [initialTab, initialTabRequestId]);
+  }, [initialTab, initialTabRequestId, enterpriseConfig?.ui]);
 
   // Subscribe to language changes
   useEffect(() => {
@@ -3356,8 +3369,37 @@ const Settings: React.FC<SettingsProps> = ({
     setError(null);
 
     try {
-      const normalizedProviders = normalizeProvidersForSettingsSave(providers);
-      const primaryProvider = resolvePrimaryProviderForSettingsSave(normalizedProviders, activeProvider);
+      const isGardyModelSave = isEnterpriseDistribution && activeTab === 'model';
+      const providersToSave = isGardyModelSave
+        ? Object.fromEntries(Object.entries(providers).map(([key, provider]) => [
+          key,
+          key === ProviderName.OpenAI
+            ? {
+              ...provider,
+              enabled: Boolean(provider.apiKey.trim()),
+              authType: ProviderAuthType.ApiKey,
+              apiFormat: 'openai',
+              models: provider.models?.length ? provider.models : getDefaultProviders().openai.models,
+            }
+            : { ...provider, enabled: false },
+        ])) as ProvidersConfig
+        : providers;
+      const normalizedProviders = normalizeProvidersForSettingsSave(providersToSave);
+      const previousConfig = configService.getConfig();
+      let allowedModelIds: string[] = [];
+      if (isGardyModelSave && normalizedProviders.openai.enabled) {
+        const openAIProvider = normalizedProviders.openai;
+        allowedModelIds = await fetchAllowedModels(openAIProvider.baseUrl, openAIProvider.apiKey);
+        const resolved = resolveAllowedModels(
+          allowedModelIds,
+          [...(openAIProvider.models ?? []), ...(getDefaultProviders().openai.models ?? [])],
+          previousConfig.model.defaultModel,
+        );
+        normalizedProviders.openai = { ...openAIProvider, models: resolved.models };
+      }
+      const primaryProvider = isGardyModelSave
+        ? normalizedProviders.openai
+        : resolvePrimaryProviderForSettingsSave(normalizedProviders, activeProvider);
       const normalizedBrowserWebAccess = normalizeBrowserWebAccessConfig({
         ...browserWebAccess,
         browserEnabled: true,
@@ -3372,7 +3414,11 @@ const Settings: React.FC<SettingsProps> = ({
         extraArgs: [],
         webFetch: defaultBrowserWebAccessConfig.webFetch,
       });
-      const previousConfig = configService.getConfig();
+      const openAIModels = normalizedProviders.openai.models ?? [];
+      const preferredOpenAIModel = openAIModels.find(model => (
+        previousConfig.model.defaultModelProvider === ProviderName.OpenAI
+        && model.id === previousConfig.model.defaultModel
+      )) ?? openAIModels.find(model => model.id === 'gpt-5-mini') ?? openAIModels[0];
       const previousBrowserWebAccess = normalizeBrowserWebAccessConfig(previousConfig.browserWebAccess);
       const previousShortcuts: ShortcutConfig = {
         ...defaultConfig.shortcuts!,
@@ -3435,12 +3481,22 @@ const Settings: React.FC<SettingsProps> = ({
       );
       let savedPluginPendingChanges: PluginPendingChanges | null = null;
 
+      if (isGardyModelSave && allowedModelIds.length > 0 && preferredOpenAIModel) {
+        await syncEnterpriseAgentModels(allowedModelIds, preferredOpenAIModel.id);
+      }
       await configService.updateConfig({
         api: {
           key: primaryProvider.apiKey,
           baseUrl: primaryProvider.baseUrl,
         },
         providers: normalizedProviders, // Save all providers configuration
+        ...(isGardyModelSave && preferredOpenAIModel ? {
+          model: {
+            ...previousConfig.model,
+            defaultModel: preferredOpenAIModel.id,
+            defaultModelProvider: ProviderName.OpenAI,
+          },
+        } : {}),
         theme,
         uiFontSize,
         codeFontSize,
@@ -4487,7 +4543,8 @@ const Settings: React.FC<SettingsProps> = ({
       { key: 'general' as TabType,        label: i18nService.t('general'),        icon: <SettingsSlidersIcon className="h-5 w-5" /> },
       { key: 'appearance' as TabType,     label: i18nService.t('appearance'),     icon: <SunIcon className="h-5 w-5" /> },
       { key: 'coworkAgentEngine' as TabType, label: i18nService.t('coworkAgentEngine'), icon: <CpuChipIcon className="h-5 w-5" /> },
-      { key: 'model' as TabType,          label: i18nService.t('settingsCustomModel'), icon: <CubeIcon className="h-5 w-5" /> },
+      { key: 'model' as TabType,          label: i18nService.t(isEnterpriseDistribution ? 'settingsApiConfig' : 'settingsCustomModel'), icon: <CubeIcon className="h-5 w-5" /> },
+      { key: 'skills' as TabType,         label: i18nService.t('settingsSkillManagement'), icon: <SkillIcon className="h-5 w-5" /> },
       { key: 'im' as TabType,             label: i18nService.t('imBot'),          icon: <ChatBubbleLeftIcon className="h-5 w-5" /> },
       { key: 'browserWebAccess' as TabType, label: i18nService.t('browserWebAccessTab'), icon: <GlobeAltIcon className="h-5 w-5" /> },
       { key: 'email' as TabType,          label: i18nService.t('emailTab'),       icon: <EnvelopeIcon className="h-5 w-5" /> },
@@ -4497,15 +4554,18 @@ const Settings: React.FC<SettingsProps> = ({
       { key: 'shortcuts' as TabType,      label: i18nService.t('shortcuts'),      icon: <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-5 w-5"><rect x="2" y="4" width="20" height="14" rx="2" /><line x1="6" y1="8" x2="8" y2="8" /><line x1="10" y1="8" x2="12" y2="8" /><line x1="14" y1="8" x2="16" y2="8" /><line x1="6" y1="12" x2="8" y2="12" /><line x1="10" y1="12" x2="14" y2="12" /><line x1="16" y1="12" x2="18" y2="12" /><line x1="8" y1="15.5" x2="16" y2="15.5" /></svg> },
       { key: 'about' as TabType,          label: i18nService.t('about'),          icon: <InformationCircleIcon className="h-5 w-5" /> },
     ];
-    // Filter out tabs hidden by enterprise config
-    // Filter out tabs with 'hide' action in enterprise config
-    // e.g., ui: { "settings.im": "hide" } → hide the 'im' tab
     const ui = enterpriseConfig?.ui;
-    if (ui) {
-      return allTabs.filter(tab => ui[`settings.${tab.key}`] !== 'hide');
-    }
-    return allTabs;
+    return allTabs.filter(tab => (
+      (isEnterpriseDistribution || tab.key !== 'skills')
+      && ui?.[`settings.${tab.key}`] !== 'hide'
+    ));
   })();
+
+  useEffect(() => {
+    if (!sidebarTabs.some(tab => tab.key === activeTab)) {
+      setActiveTab('general');
+    }
+  }, [activeTab, sidebarTabs]);
 
   const activeTabLabel = useMemo(() => {
     return sidebarTabs.find(t => t.key === activeTab)?.label ?? '';
@@ -4768,28 +4828,30 @@ const Settings: React.FC<SettingsProps> = ({
           <div className="space-y-8">
             {/* Group: General basics */}
             <SettingsGroup title={i18nService.t('settingsGroupBasics')}>
-              <SettingsRow>
-                <div className="flex items-center justify-between gap-4">
-                  <h4 className="text-sm font-medium text-foreground">
-                    {i18nService.t('language')}
-                  </h4>
-                  <div className="w-[140px] shrink-0">
-                    <ThemedSelect
-                      id="language"
-                      value={language}
-                      onChange={(value) => {
-                        const nextLanguage = value as LanguageType;
-                        setLanguage(nextLanguage);
-                        i18nService.setLanguage(nextLanguage, { persist: false });
-                      }}
-                      options={[
-                        { value: 'zh', label: i18nService.t('chinese') },
-                        { value: 'en', label: i18nService.t('english') }
-                      ]}
-                    />
+              {!enterpriseConfig?.language && (
+                <SettingsRow>
+                  <div className="flex items-center justify-between gap-4">
+                    <h4 className="text-sm font-medium text-foreground">
+                      {i18nService.t('language')}
+                    </h4>
+                    <div className="w-[140px] shrink-0">
+                      <ThemedSelect
+                        id="language"
+                        value={language}
+                        onChange={(value) => {
+                          const nextLanguage = value as LanguageType;
+                          setLanguage(nextLanguage);
+                          i18nService.setLanguage(nextLanguage, { persist: false });
+                        }}
+                        options={[
+                          { value: 'zh', label: i18nService.t('chinese') },
+                          { value: 'en', label: i18nService.t('english') }
+                        ]}
+                      />
+                    </div>
                   </div>
-                </div>
-              </SettingsRow>
+                </SettingsRow>
+              )}
 
               <SettingsRow>
                 <SettingsToggleRow
@@ -5016,16 +5078,18 @@ const Settings: React.FC<SettingsProps> = ({
                 />
               </SettingsRow>
 
-              <SettingsRow>
-                <SettingsToggleRow
-                  title={i18nService.t('usageAnalyticsEnabled')}
-                  description={i18nService.t('usageAnalyticsEnabledDescription')}
-                  checked={usageAnalyticsEnabled}
-                  onToggle={() => {
-                    setUsageAnalyticsEnabled((prev) => !prev);
-                  }}
-                />
-              </SettingsRow>
+              {!enterpriseConfig?.disableTelemetry && (
+                <SettingsRow>
+                  <SettingsToggleRow
+                    title={i18nService.t('usageAnalyticsEnabled')}
+                    description={i18nService.t('usageAnalyticsEnabledDescription')}
+                    checked={usageAnalyticsEnabled}
+                    onToggle={() => {
+                      setUsageAnalyticsEnabled((prev) => !prev);
+                    }}
+                  />
+                </SettingsRow>
+              )}
             </SettingsGroup>
           </div>
         );
@@ -5567,6 +5631,15 @@ const Settings: React.FC<SettingsProps> = ({
         );
 
       case 'model':
+        if (isEnterpriseDistribution) {
+          return (
+            <GardyModelConfig
+              baseUrl={providers.openai.baseUrl}
+              apiKey={providers.openai.apiKey}
+              onChange={(field, value) => handleProviderConfigChange(ProviderName.OpenAI, field, value)}
+            />
+          );
+        }
         return (
           <ModelSettingsSection
             providers={providers}
@@ -5719,7 +5792,7 @@ const Settings: React.FC<SettingsProps> = ({
         );
 
       case 'im':
-        return <IMSettings />;
+        return <IMSettings wecomOnly={isEnterpriseDistribution} />;
 
       case 'plugins':
         return (
@@ -5733,8 +5806,8 @@ const Settings: React.FC<SettingsProps> = ({
           <div className="flex min-h-full flex-col items-center pt-6 pb-3">
             {/* Logo & App Name */}
             <img
-              src="logo.png"
-              alt="LobsterAI"
+              src="gardy-mark.svg"
+              alt={appName}
               className="w-16 h-16 mb-3 cursor-pointer select-none"
               onClick={(e) => {
                 if (!e.altKey || !e.shiftKey) return;
@@ -5746,7 +5819,7 @@ const Settings: React.FC<SettingsProps> = ({
                 }
               }}
             />
-            <h3 className="text-lg font-semibold text-foreground">LobsterAI</h3>
+            <h3 className="text-lg font-semibold text-foreground">{appName}</h3>
             <span className="text-xs text-secondary mt-1">v{appVersion}</span>
 
             {/* Info Card */}
@@ -5775,53 +5848,57 @@ const Settings: React.FC<SettingsProps> = ({
                   )}
                 </div>
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 border-b border-border">
-                <span className="shrink-0 text-sm text-foreground">{i18nService.t('aboutContactEmail')}</span>
-                <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void handleCopyContactEmail();
-                    }}
-                    title={i18nService.t('copyToClipboard')}
-                    className="min-w-0 break-all text-right text-sm text-secondary bg-transparent border-none appearance-none p-0 m-0 cursor-pointer focus:outline-none"
-                  >
-                    {ABOUT_CONTACT_EMAIL}
-                  </button>
-                  {emailCopied && (
-                    <span className="text-[11px] leading-4 text-emerald-600 dark:text-emerald-400">
-                      {i18nService.t('copied')}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 border-b border-border">
-                <span className="shrink-0 text-sm text-foreground">{i18nService.t('aboutUserCommunity')}</span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleOpenUserCommunity();
-                  }}
-                  className="min-w-0 break-all text-right text-sm text-secondary hover:text-primary dark:hover:text-primary bg-transparent border-none appearance-none px-1.5 py-0.5 -mx-1.5 -my-0.5 rounded-md cursor-pointer focus:outline-none hover:bg-surface-raised transition-colors"
-                >
-                  {ABOUT_USER_COMMUNITY_URL}
-                </button>
-              </div>
-              <div className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3${testModeUnlocked ? ' border-b border-border' : ''}`}>
-                <span className="shrink-0 text-sm text-foreground">{i18nService.t('aboutUserManual')}</span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleOpenUserManual();
-                  }}
-                  className="min-w-0 break-all text-right text-sm text-secondary hover:text-primary dark:hover:text-primary bg-transparent border-none appearance-none px-1.5 py-0.5 -mx-1.5 -my-0.5 rounded-md cursor-pointer focus:outline-none hover:bg-surface-raised transition-colors"
-                >
-                  {ABOUT_USER_MANUAL_URL}
-                </button>
-              </div>
+              {!isEnterpriseDistribution && (
+                <>
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 border-b border-border">
+                    <span className="shrink-0 text-sm text-foreground">{i18nService.t('aboutContactEmail')}</span>
+                    <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleCopyContactEmail();
+                        }}
+                        title={i18nService.t('copyToClipboard')}
+                        className="min-w-0 break-all text-right text-sm text-secondary bg-transparent border-none appearance-none p-0 m-0 cursor-pointer focus:outline-none"
+                      >
+                        {ABOUT_CONTACT_EMAIL}
+                      </button>
+                      {emailCopied && (
+                        <span className="text-[11px] leading-4 text-emerald-600 dark:text-emerald-400">
+                          {i18nService.t('copied')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 border-b border-border">
+                    <span className="shrink-0 text-sm text-foreground">{i18nService.t('aboutUserCommunity')}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenUserCommunity();
+                      }}
+                      className="min-w-0 break-all text-right text-sm text-secondary hover:text-primary dark:hover:text-primary bg-transparent border-none appearance-none px-1.5 py-0.5 -mx-1.5 -my-0.5 rounded-md cursor-pointer focus:outline-none hover:bg-surface-raised transition-colors"
+                    >
+                      {ABOUT_USER_COMMUNITY_URL}
+                    </button>
+                  </div>
+                  <div className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3${testModeUnlocked ? ' border-b border-border' : ''}`}>
+                    <span className="shrink-0 text-sm text-foreground">{i18nService.t('aboutUserManual')}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenUserManual();
+                      }}
+                      className="min-w-0 break-all text-right text-sm text-secondary hover:text-primary dark:hover:text-primary bg-transparent border-none appearance-none px-1.5 py-0.5 -mx-1.5 -my-0.5 rounded-md cursor-pointer focus:outline-none hover:bg-surface-raised transition-colors"
+                    >
+                      {ABOUT_USER_MANUAL_URL}
+                    </button>
+                  </div>
+                </>
+              )}
               {testModeUnlocked && (
                 <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
                   <span className="shrink-0 text-sm text-foreground">{i18nService.t('testMode')}</span>
@@ -5847,17 +5924,21 @@ const Settings: React.FC<SettingsProps> = ({
             {/* Footer */}
             <div className="mt-auto w-full pt-14 pb-2 flex flex-col items-center">
               <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-sm text-secondary">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleOpenServiceTerms();
-                  }}
-                  className="bg-transparent border-none appearance-none px-1.5 py-0.5 -mx-1.5 -my-0.5 rounded-md cursor-pointer hover:text-primary dark:hover:text-primary transition-colors"
-                >
-                  {i18nService.t('aboutServiceTerms')}
-                </button>
-                <span className="text-xs opacity-40">|</span>
+                {!isEnterpriseDistribution && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenServiceTerms();
+                      }}
+                      className="bg-transparent border-none appearance-none px-1.5 py-0.5 -mx-1.5 -my-0.5 rounded-md cursor-pointer hover:text-primary dark:hover:text-primary transition-colors"
+                    >
+                      {i18nService.t('aboutServiceTerms')}
+                    </button>
+                    <span className="text-xs opacity-40">|</span>
+                  </>
+                )}
                 <button
                   type="button"
                   onClick={(e) => {
@@ -5872,10 +5953,17 @@ const Settings: React.FC<SettingsProps> = ({
               </div>
 
               <p className="mt-5 text-center text-xs text-secondary">
-                {i18nService.t('copyrightHolder')}
+                {isEnterpriseDistribution
+                  ? i18nService.t('gardyCopyrightHolder')
+                  : i18nService.t('copyrightHolder')}
               </p>
               <p className="mt-1 text-center text-xs text-secondary">
-                Copyright &copy; {new Date().getFullYear()} NetEase Youdao. All Rights Reserved.
+                {isEnterpriseDistribution
+                  ? i18nService.t('gardyCopyrightNotice').replace(
+                    '{year}',
+                    String(new Date().getFullYear()),
+                  )
+                  : <>Copyright &copy; {new Date().getFullYear()} NetEase Youdao. All Rights Reserved.</>}
               </p>
             </div>
           </div>
@@ -5952,6 +6040,11 @@ const Settings: React.FC<SettingsProps> = ({
             </div>
           )}
 
+          {activeTab === 'skills' ? (
+            <div className="flex-1 overflow-y-auto px-6 py-4" style={{ scrollbarGutter: 'stable' }}>
+              <SkillsManager />
+            </div>
+          ) : (
           <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
             {/* Tab content */}
             <div
@@ -5988,6 +6081,7 @@ const Settings: React.FC<SettingsProps> = ({
               </div>
             </div>
           </form>
+          )}
 
         </div>
 

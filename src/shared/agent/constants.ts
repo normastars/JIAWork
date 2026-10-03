@@ -54,8 +54,11 @@ export type AgentLegacyIdentityCleanupResult =
 
 export const LegacyAgentName = {
   Main: 'main',
+  LobsterAI: 'lobsterai',
+  GardyWorkbench: 'gardy ai workbench',
+  GardyAssistant: '嘉迪助手',
 } as const;
 
 export const DefaultAgentProfile = {
-  Name: 'LobsterAI',
+  Name: '嘉迪专家',
 } as const;

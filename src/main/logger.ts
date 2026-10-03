@@ -13,9 +13,11 @@
  *   - Files older than 7 days are pruned on startup
  */
 
-import path from 'path';
-import fs from 'fs';
 import log from 'electron-log/main';
+import fs from 'fs';
+import path from 'path';
+
+import { APP_NAME } from './appConstants';
 
 const LOG_RETENTION_DAYS = 7;
 const LOG_MAX_SIZE = 80 * 1024 * 1024; // 80 MB
@@ -91,7 +93,7 @@ export function initLogger(): void {
 
   // Log startup marker
   log.info('='.repeat(60));
-  log.info(`LobsterAI started (${process.platform} ${process.arch})`);
+  log.info(`${APP_NAME} started (${process.platform} ${process.arch})`);
   log.info('='.repeat(60));
 }
 

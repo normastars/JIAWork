@@ -104,13 +104,18 @@ function verifyPreinstalledPlugins(runtimeRoot, buildHint) {
 
   const extensionsDir = path.join(runtimeRoot, 'third-party-extensions');
   const missing = [];
+  const missingOptional = [];
 
   for (const plugin of plugins) {
     if (!plugin.id) continue;
     const pluginDir = path.join(extensionsDir, plugin.id);
     if (!existsSync(pluginDir)) {
-      missing.push(plugin.id);
+      (plugin.optional ? missingOptional : missing).push(plugin.id);
     }
+  }
+
+  if (missingOptional.length > 0) {
+    console.warn(`[electron-builder-hooks] Optional OpenClaw plugins unavailable: ${missingOptional.join(', ')}`);
   }
 
   if (missing.length > 0) {
@@ -121,7 +126,7 @@ function verifyPreinstalledPlugins(runtimeRoot, buildHint) {
     );
   }
 
-  console.log(`[electron-builder-hooks] Verified ${plugins.length} preinstalled OpenClaw plugin(s).`);
+  console.log(`[electron-builder-hooks] Verified ${plugins.length - missingOptional.length} preinstalled OpenClaw plugin(s).`);
 }
 
 function hasCompiledLocalExtension(runtimeRoot, extensionId) {

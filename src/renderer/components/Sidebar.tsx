@@ -54,7 +54,11 @@ interface SidebarProps {
   /** The expanded update card owns the sidebar bottom; temporarily hide the
    * promo banner while preserving it for a smooth return after collapse. */
   hideAdBanner?: boolean;
+  disableAdBanner?: boolean;
   hideLogin?: boolean;
+  hideKits?: boolean;
+  hideSkills?: boolean;
+  hideMcp?: boolean;
   hideSites?: boolean;
 }
 
@@ -145,7 +149,11 @@ const Sidebar: React.FC<SidebarProps> = ({
   onWidthChange,
   updateNotice,
   hideAdBanner,
+  disableAdBanner,
   hideLogin,
+  hideKits,
+  hideSkills,
+  hideMcp,
   hideSites,
 }) => {
   const currentAgentId = useSelector((state: RootState) => state.agent.currentAgentId);
@@ -579,51 +587,57 @@ const Sidebar: React.FC<SidebarProps> = ({
             <SidebarAutomationIcon className="h-4 w-4 shrink-0" />
             {i18nService.t('scheduledTasks')}
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              reportSidebarAction('open_kits', { activeView, isCollapsed });
-              setIsSearchOpen(false);
-              dismissKitsNewBadge();
-              onShowKits();
-            }}
-            className={activeView === 'kits' ? activeSidebarNavItemClassName : sidebarNavItemClassName}
-            aria-current={activeView === 'kits' ? 'page' : undefined}
-          >
-            <SidebarKitsIcon className="h-4 w-4 shrink-0" />
-            <span className="min-w-0 truncate">{i18nService.t('kits')}</span>
-            {showKitsNewBadge && (
-              <span className="inline-flex h-4 shrink-0 items-center rounded-[4px] bg-[#ff4f6d] px-1.5 text-[10px] font-semibold leading-none text-white">
-                {i18nService.t('newFeatureBadge')}
-              </span>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              reportSidebarAction('open_skills', { activeView, isCollapsed });
-              setIsSearchOpen(false);
-              onShowSkills();
-            }}
-            className={activeView === 'skills' ? activeSidebarNavItemClassName : sidebarNavItemClassName}
-            aria-current={activeView === 'skills' ? 'page' : undefined}
-          >
-            <SkillIcon className="h-4 w-4 shrink-0" />
-            {i18nService.t('skills')}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              reportSidebarAction('open_mcp', { activeView, isCollapsed });
-              setIsSearchOpen(false);
-              onShowMcp();
-            }}
-            className={activeView === 'mcp' ? activeSidebarNavItemClassName : sidebarNavItemClassName}
-            aria-current={activeView === 'mcp' ? 'page' : undefined}
-          >
-            <SidebarMcpIcon className="h-4 w-4 shrink-0" />
-            {i18nService.t('mcpServers')}
-          </button>
+          {!hideKits && (
+            <button
+              type="button"
+              onClick={() => {
+                reportSidebarAction('open_kits', { activeView, isCollapsed });
+                setIsSearchOpen(false);
+                dismissKitsNewBadge();
+                onShowKits();
+              }}
+              className={activeView === 'kits' ? activeSidebarNavItemClassName : sidebarNavItemClassName}
+              aria-current={activeView === 'kits' ? 'page' : undefined}
+            >
+              <SidebarKitsIcon className="h-4 w-4 shrink-0" />
+              <span className="min-w-0 truncate">{i18nService.t('kits')}</span>
+              {showKitsNewBadge && (
+                <span className="inline-flex h-4 shrink-0 items-center rounded-[4px] bg-[#ff4f6d] px-1.5 text-[10px] font-semibold leading-none text-white">
+                  {i18nService.t('newFeatureBadge')}
+                </span>
+              )}
+            </button>
+          )}
+          {!hideSkills && (
+            <button
+              type="button"
+              onClick={() => {
+                reportSidebarAction('open_skills', { activeView, isCollapsed });
+                setIsSearchOpen(false);
+                onShowSkills();
+              }}
+              className={activeView === 'skills' ? activeSidebarNavItemClassName : sidebarNavItemClassName}
+              aria-current={activeView === 'skills' ? 'page' : undefined}
+            >
+              <SkillIcon className="h-4 w-4 shrink-0" />
+              {i18nService.t('skills')}
+            </button>
+          )}
+          {!hideMcp && (
+            <button
+              type="button"
+              onClick={() => {
+                reportSidebarAction('open_mcp', { activeView, isCollapsed });
+                setIsSearchOpen(false);
+                onShowMcp();
+              }}
+              className={activeView === 'mcp' ? activeSidebarNavItemClassName : sidebarNavItemClassName}
+              aria-current={activeView === 'mcp' ? 'page' : undefined}
+            >
+              <SidebarMcpIcon className="h-4 w-4 shrink-0" />
+              {i18nService.t('mcpServers')}
+            </button>
+          )}
           {!hideSites && (
             <button
               type="button"
@@ -676,7 +690,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             onBatchSelectableItemsChange={handleBatchSelectableItemsChange}
           />
         </div>
-        {!isBatchMode && (
+        {!isBatchMode && !disableAdBanner && (
           <SidebarExperienceSlot
             hidden={hideAdBanner}
             onVisibleChange={setIsSidebarBannerVisible}

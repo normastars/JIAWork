@@ -583,6 +583,7 @@ describe('OpenClawConfigSync runtime config output', () => {
     expect(config.models.providers.deepseek).toBeDefined();
     expect(config.agents.defaults.models).toBeUndefined();
     expect(config.agents.defaults.workspace).toBe(path.join(stateDir, 'workspace-main'));
+    expect(config.agents.defaults.skipBootstrap).toBe(true);
     expect(config.agents.defaults.cwd).toBe(path.resolve(tmpDir));
   });
 
@@ -2631,7 +2632,7 @@ describe('OpenClawConfigSync runtime config output', () => {
     expect(config.channels['openclaw-weixin']).not.toHaveProperty('accountId');
   });
 
-  test('writes managed browser policy forcing host target', async () => {
+  test('writes managed Chinese output and browser policies', async () => {
     const { OpenClawConfigSync } = await import('./openclawConfigSync');
 
     const sync = new OpenClawConfigSync({
@@ -2667,7 +2668,9 @@ describe('OpenClawConfigSync runtime config output', () => {
 
     const agentsMdPath = path.join(stateDir, 'workspace-main', 'AGENTS.md');
     const agentsMd = fs.readFileSync(agentsMdPath, 'utf8');
-    expect(agentsMd).toContain('LobsterAI does not support sandbox browser execution in this version.');
+    expect(agentsMd).toContain('所有面向用户的说明、分析、结论、提问和最终回复必须使用简体中文。');
+    expect(agentsMd).toContain('生成 Word、Excel、PPT、Markdown、网页或其他交付内容时');
+    expect(agentsMd).toContain('GARDY AI Workbench does not support sandbox browser execution in this version.');
     expect(agentsMd).toContain('For every `browser` tool call, set `target="host"` explicitly.');
   });
 

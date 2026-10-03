@@ -356,6 +356,14 @@ const providerApiKeyEnvVar = (providerName: string): string => {
   return `LOBSTER_APIKEY_${envName}`;
 };
 
+const MANAGED_CHINESE_OUTPUT_PROMPT = [
+  '## 输出语言',
+  '',
+  '- 所有面向用户的说明、分析、结论、提问和最终回复必须使用简体中文。',
+  '- 生成 Word、Excel、PPT、Markdown、网页或其他交付内容时，标题、正文、图表标签和说明默认使用简体中文。',
+  '- 代码、命令、文件路径、字段名、接口名、产品名和用户提供的原文可保留原语言，但必须用简体中文解释。',
+].join('\n');
+
 const MANAGED_WEB_SEARCH_POLICY_PROMPT = [
   '## Web Search',
   '',
@@ -366,10 +374,10 @@ const MANAGED_WEB_SEARCH_POLICY_PROMPT = [
   '- Do not use `web_fetch` to fetch Google/Bing search result pages as a search substitute; use `browser` or an available search skill instead.',
   '- If you need search discovery, dynamic pages, or interactive browsing, use the built-in `browser` tool.',
   '- For login-required, JavaScript-heavy, or anti-automation pages, use `browser` instead of `web_fetch`.',
-  '- Only use the LobsterAI `web-search` skill when local command execution is available. Native channel sessions may deny `exec`, so prefer `browser` or `web_fetch` there.',
+  '- Only use the GARDY AI Workbench `web-search` skill when local command execution is available. Native channel sessions may deny `exec`, so prefer `browser` or `web_fetch` there.',
   '- Exception: the `imap-smtp-email` skill must always use `exec` to run its scripts, even in native channel sessions. Do not skip it because of exec restrictions.',
   '',
-  'Do not claim you searched the web unless you actually used `browser`, `web_fetch`, or the LobsterAI `web-search` skill.',
+  'Do not claim you searched the web unless you actually used `browser`, `web_fetch`, or the GARDY AI Workbench `web-search` skill.',
 ].join('\n');
 
 const BUNDLED_BROWSER_PLUGIN_ID = 'browser';
@@ -377,9 +385,9 @@ const BUNDLED_BROWSER_PLUGIN_ID = 'browser';
 const MANAGED_BROWSER_POLICY_PROMPT = [
   '## Browser Policy',
   '',
-  'LobsterAI does not support sandbox browser execution in this version.',
+  'GARDY AI Workbench does not support sandbox browser execution in this version.',
   '- For every `browser` tool call, set `target="host"` explicitly.',
-  '- Do not use `target="sandbox"` or `target="node"` unless a future LobsterAI version explicitly enables it.',
+  '- Do not use `target="sandbox"` or `target="node"` unless a future GARDY AI Workbench version explicitly enables it.',
   '- If a browser call fails because the sandbox browser is unavailable, retry the same action with `target="host"`.',
 ].join('\n');
 
@@ -427,7 +435,7 @@ const resolveSkillCreationPath = (): string => {
 const buildManagedSkillCreationPrompt = (skillsDirPath: string): string => [
   '## Skill Creation',
   '',
-  'When the user asks you to create a new skill, you MUST place it under the LobsterAI skills directory:',
+  'When the user asks you to create a new skill, you MUST place it under the GARDY AI Workbench skills directory:',
   '',
   `  ${skillsDirPath}/<skill-name>/SKILL.md`,
   '',
@@ -456,7 +464,7 @@ const MANAGED_DELIVERABLE_LINKS_PROMPT = [
 const MANAGED_MATH_FORMAT_PROMPT = [
   '## Math Formula Formatting',
   '',
-  'The LobsterAI app chat renders TeX formulas with KaTeX.',
+  'The GARDY AI Workbench chat renders TeX formulas with KaTeX.',
   '',
   '- In app chat sessions, write every mathematical formula or expression in TeX:',
   '  `$...$` inline, and `$$` on its own lines around display blocks.',
@@ -2280,6 +2288,7 @@ loopDetection: MANAGED_TOOL_LOOP_DETECTION,
       },
       agents: {
         defaults: {
+          skipBootstrap: true,
           timeoutSeconds: OPENCLAW_AGENT_TIMEOUT_SECONDS,
           model: {
             primary: primaryModel,
@@ -3597,6 +3606,8 @@ loopDetection: MANAGED_TOOL_LOOP_DETECTION,
       if (systemPrompt) {
         sections.push(`## System Prompt\n\n${systemPrompt}`);
       }
+
+      sections.push(MANAGED_CHINESE_OUTPUT_PROMPT);
 
       // Skills are now loaded by OpenClaw natively via skills.load.extraDirs
       // in openclaw.json, so we no longer embed the skills routing prompt here.

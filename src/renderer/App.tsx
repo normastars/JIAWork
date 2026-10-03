@@ -2,6 +2,7 @@ import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import React, { useCallback, useEffect, useMemo,useRef, useState } from 'react';
 import { useDispatch,useSelector } from 'react-redux';
 
+import gardyEnterpriseManifest from '../../enterprise-configs/gardy/manifest.json';
 import {
   APP_UPDATE_HEARTBEAT_INTERVAL_MS,
   APP_UPDATE_POLL_INTERVAL_MS,
@@ -10,6 +11,7 @@ import {
   AppUpdateStatus,
   isManualDownloadUrl,
 } from '../shared/appUpdate/constants';
+import type { EnterpriseWorkbenchConfig } from '../shared/enterprise/workbench';
 import { ProviderAuthType, ProviderName, ProviderRegistry } from '../shared/providers';
 import { CoworkView } from './components/cowork';
 import { CoworkShortcutDirection, CoworkUiEvent } from './components/cowork/constants';
@@ -53,7 +55,9 @@ import { authService } from './services/auth';
 import { configService } from './services/config';
 import { coworkService } from './services/cowork';
 import { isTestModeEnabled } from './services/endpoints';
-import { i18nService } from './services/i18n';
+import { reconcileEnterpriseModels } from './services/enterpriseModelAccess';
+import { resolveEnterpriseLocalizedText } from './services/enterpriseWorkbench';
+import { i18nService, type LanguageType } from './services/i18n';
 import { LogReporterAction, reportYdAnalyzer } from './services/logReporter';
 import { scheduledTaskService } from './services/scheduledTask';
 import { matchesShortcut } from './services/shortcuts';
@@ -127,6 +131,19 @@ const logAppUpdateRendererLifecycle = (
   }
 };
 
+type EnterpriseUiAction = 'hide' | 'disable' | 'readonly';
+
+type EnterpriseRendererConfig = {
+  language?: LanguageType;
+  ui?: Record<string, EnterpriseUiAction>;
+  disableUpdate?: boolean;
+  disableTelemetry?: boolean;
+  autoAcceptPrivacy?: boolean;
+  workbench?: EnterpriseWorkbenchConfig;
+};
+
+const DEFAULT_GARDY_ENTERPRISE_CONFIG = gardyEnterpriseManifest as EnterpriseRendererConfig;
+
 const App: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [settingsOptions, setSettingsOptions] = useState<SettingsOpenOptions & { requestId: number }>({ requestId: 0 });
@@ -151,10 +168,27 @@ const App: React.FC = () => {
   const [isUserInitiatedUpdateFlowActive, setIsUserInitiatedUpdateFlowActive] = useState(false);
   const [privacyAgreed, setPrivacyAgreed] = useState<boolean | null>(null);
   const [welcomeLoginPending, setWelcomeLoginPending] = useState(false);
-  const [enterpriseConfig, setEnterpriseConfig] = useState<{
-    ui?: Record<string, 'hide' | 'disable' | 'readonly'>;
-    disableUpdate?: boolean;
-  } | null>(null);
+  const [enterpriseConfig, setEnterpriseConfig] = useState<EnterpriseRendererConfig | null>(null);
+  const activeEnterpriseConfig = useMemo<EnterpriseRendererConfig>(() => ({
+    ...DEFAULT_GARDY_ENTERPRISE_CONFIG,
+    ...enterpriseConfig,
+    language: DEFAULT_GARDY_ENTERPRISE_CONFIG.language,
+    ui: {
+      ...DEFAULT_GARDY_ENTERPRISE_CONFIG.ui,
+      ...enterpriseConfig?.ui,
+    },
+    workbench: {
+      ...DEFAULT_GARDY_ENTERPRISE_CONFIG.workbench,
+      ...enterpriseConfig?.workbench,
+      quickActions:
+        enterpriseConfig?.workbench?.quickActions
+        ?? DEFAULT_GARDY_ENTERPRISE_CONFIG.workbench?.quickActions,
+    },
+  }), [enterpriseConfig]);
+  const activeAppName = resolveEnterpriseLocalizedText(
+    activeEnterpriseConfig.workbench?.title,
+    i18nService.getLanguage(),
+  ) ?? '嘉迪 AI 工作台';
   const toastTimerRef = useRef<number | null>(null);
   const askAiFocusTimerRef = useRef<number | null>(null);
   const hasInitialized = useRef(false);
@@ -174,10 +208,11 @@ const App: React.FC = () => {
     ? minimizedPermissionIds.includes(pendingPermission.requestId)
     : false;
   const isPermissionModalOpen = pendingPermission !== null && !isPendingPermissionMinimized;
-  const isUpdateInteractionBlocked = shouldBlockAppInteractionForUpdate(
-    isUserInitiatedUpdateFlowActive,
-    appUpdateState.status,
-  );
+  const isUpdateInteractionBlocked = !activeEnterpriseConfig.disableUpdate
+    && shouldBlockAppInteractionForUpdate(
+      isUserInitiatedUpdateFlowActive,
+      appUpdateState.status,
+    );
 
   const waitWithTimeout = useCallback(
     async <T,>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
@@ -240,11 +275,55 @@ const App: React.FC = () => {
         await waitWithTimeout(i18nService.initialize(), initTimeoutMs, 'i18nService.initialize');
         mark('i18nService.initialize done');
 
-        mark('authService.init begin');
-        await authService.init();
-        mark('authService.init done');
+        const resolvedEnterpriseConfig: EnterpriseRendererConfig = {
+          ...DEFAULT_GARDY_ENTERPRISE_CONFIG,
+          ...entConfig,
+          language: DEFAULT_GARDY_ENTERPRISE_CONFIG.language,
+          ui: {
+            ...DEFAULT_GARDY_ENTERPRISE_CONFIG.ui,
+            ...entConfig?.ui,
+          },
+        };
 
-        const config = await configService.getConfig();
+        if (resolvedEnterpriseConfig.language) {
+          i18nService.setLanguage(resolvedEnterpriseConfig.language);
+          mark(`language forced to ${resolvedEnterpriseConfig.language} by enterprise config`);
+        }
+
+        if (resolvedEnterpriseConfig.ui?.login === 'hide') {
+          mark('authService.init skipped by enterprise config');
+        } else {
+          mark('authService.init begin');
+          await authService.init();
+          mark('authService.init done');
+        }
+
+        let config = configService.getConfig();
+        if (entConfig?.ui?.login === 'hide') {
+          try {
+            const reconciled = await waitWithTimeout(
+              reconcileEnterpriseModels(config),
+              5_000,
+              'enterprise model access',
+            );
+            if (reconciled.model.defaultModel !== config.model.defaultModel
+              || JSON.stringify(reconciled.providers?.[ProviderName.OpenAI]?.models)
+                !== JSON.stringify(config.providers?.[ProviderName.OpenAI]?.models)) {
+              await configService.updateConfig({
+                providers: reconciled.providers,
+                model: reconciled.model,
+              });
+              config = configService.getConfig();
+            }
+          } catch (error) {
+            console.warn('[Enterprise] model access sync failed:', error);
+          }
+        }
+        if (resolvedEnterpriseConfig.disableTelemetry && config.usageAnalyticsEnabled !== false) {
+          await configService.updateConfig({ usageAnalyticsEnabled: false });
+          config = configService.getConfig();
+          mark('usage analytics disabled by enterprise config');
+        }
         applyTypographyPreferences(config);
         const apiConfig: ApiConfig = {
           apiKey: config.api.key,
@@ -285,7 +364,10 @@ const App: React.FC = () => {
         mark('model resolution done');
 
         const agreed = await window.electron.store.get('privacy_agreed');
-        setPrivacyAgreed(agreed === true);
+        if (resolvedEnterpriseConfig.autoAcceptPrivacy && agreed !== true) {
+          await window.electron.store.set('privacy_agreed', true);
+        }
+        setPrivacyAgreed(resolvedEnterpriseConfig.autoAcceptPrivacy === true || agreed === true);
         mark('privacy check done');
 
         setIsInitialized(true);
@@ -395,8 +477,9 @@ const App: React.FC = () => {
   }, []);
 
   const handleShowSkills = useCallback(() => {
+    if (activeEnterpriseConfig.ui?.skills === 'hide') return;
     setMainView('skills');
-  }, []);
+  }, [activeEnterpriseConfig.ui?.skills]);
 
   const handleShowCowork = useCallback(() => {
     setMainView('cowork');
@@ -407,16 +490,19 @@ const App: React.FC = () => {
   }, []);
 
   const handleShowMcp = useCallback(() => {
+    if (activeEnterpriseConfig.ui?.mcp === 'hide') return;
     setMainView('mcp');
-  }, []);
+  }, [activeEnterpriseConfig.ui?.mcp]);
 
   const handleShowSites = useCallback(() => {
+    if (activeEnterpriseConfig.ui?.sites === 'hide') return;
     setMainView('sites');
-  }, []);
+  }, [activeEnterpriseConfig.ui?.sites]);
 
   const handleShowKits = useCallback(() => {
+    if (activeEnterpriseConfig.ui?.kits === 'hide') return;
     setMainView('kits');
-  }, []);
+  }, [activeEnterpriseConfig.ui?.kits]);
 
   const openHomeWithKit = useCallback((kitId: string, text?: string) => {
     dispatch(setActiveKitIds([kitId]));
@@ -1181,7 +1267,7 @@ const App: React.FC = () => {
     if (!isInitialized) return;
 
     // Enterprise mode: completely skip update detection
-    if (enterpriseConfig?.disableUpdate) return;
+    if (activeEnterpriseConfig.disableUpdate) return;
 
     let cancelled = false;
     let lastCheckTime = 0;
@@ -1216,7 +1302,7 @@ const App: React.FC = () => {
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isInitialized, runUpdateCheck, enterpriseConfig]);
+  }, [activeEnterpriseConfig.disableUpdate, isInitialized, runUpdateCheck]);
 
   // 根据场景选择使用哪个权限组件。最小化时保持组件挂载（仅视觉隐藏），
   // 避免重新展开后丢失用户已选择/已输入的内容；key 按 requestId 隔离不同请求的状态。
@@ -1260,7 +1346,9 @@ const App: React.FC = () => {
     || isUpdateInteractionBlocked;
   // Keep the badge visible while downloading so the collapsed-sidebar layouts
   // still surface progress; only a plain re-check hides nothing new.
-  const shouldShowUpdateBadge = updateInfo && appUpdateState.status !== AppUpdateStatus.Checking;
+  const shouldShowUpdateBadge = !activeEnterpriseConfig.disableUpdate
+    && updateInfo
+    && appUpdateState.status !== AppUpdateStatus.Checking;
   const updateBadge = shouldShowUpdateBadge ? (
     <AppUpdateBadge
       latestVersion={updateInfo.latestVersion}
@@ -1269,7 +1357,7 @@ const App: React.FC = () => {
       onClick={handleOpenUpdateModal}
     />
   ) : null;
-  const updateCard = updateInfo ? (
+  const updateCard = !activeEnterpriseConfig.disableUpdate && updateInfo ? (
     <AppUpdateCard
       updateState={appUpdateState}
       onUpdate={handleConfirmUpdate}
@@ -1283,6 +1371,7 @@ const App: React.FC = () => {
   const collapsedHeaderUpdateBadge = isSidebarCollapsed && !isWindows ? updateBadge : null;
   const windowsStandaloneTitleBar = isWindows ? (
     <WindowsAppTitleBar
+      title={activeAppName}
       isOverlayActive={isOverlayActive}
       isSidebarCollapsed={isSidebarCollapsed}
       sidebarWidth={sidebarWidth}
@@ -1335,12 +1424,13 @@ const App: React.FC = () => {
           {showSettings && (
             <SkinProvider>
               <Settings
+                appName={activeAppName}
                 onClose={handleCloseSettings}
                 initialTab={settingsOptions.initialTab}
                 initialTabRequestId={settingsOptions.requestId}
                 notice={settingsOptions.notice}
                 onUpdateFound={handleUpdateFound}
-                enterpriseConfig={enterpriseConfig}
+                enterpriseConfig={activeEnterpriseConfig}
               />
             </SkinProvider>
           )}
@@ -1363,6 +1453,7 @@ const App: React.FC = () => {
           />
         )}
         <WelcomeDialog
+          appName={activeAppName}
           onLogin={handleWelcomeLogin}
           loginPending={welcomeLoginPending}
           onCancelLogin={handleWelcomeCancelLogin}
@@ -1394,7 +1485,7 @@ const App: React.FC = () => {
       {/* The welcome screen renders via the early return above, so agreement
           alone gates the campaign here (no separate showWelcome flag). */}
       <StartupCreditCampaign
-        enabled={privacyAgreed === true}
+        enabled={privacyAgreed === true && activeEnterpriseConfig.ui?.login !== 'hide'}
       />
       {windowsStandaloneTitleBar}
       <div
@@ -1417,8 +1508,12 @@ const App: React.FC = () => {
           onWidthChange={setSidebarWidth}
           updateNotice={!isSidebarCollapsed && !isUpdateInteractionBlocked ? updateCard : null}
           hideAdBanner={isUpdateCardExpanded}
-          hideLogin={enterpriseConfig?.ui?.login === 'hide'}
-          hideSites={!isTestModeEnabled() || enterpriseConfig?.ui?.sites === 'hide'}
+          disableAdBanner={activeEnterpriseConfig.ui?.login === 'hide'}
+          hideLogin={activeEnterpriseConfig.ui?.login === 'hide'}
+          hideKits={activeEnterpriseConfig.ui?.kits === 'hide'}
+          hideSkills={activeEnterpriseConfig.ui?.skills === 'hide'}
+          hideMcp={activeEnterpriseConfig.ui?.mcp === 'hide'}
+          hideSites={!isTestModeEnabled() || activeEnterpriseConfig.ui?.sites === 'hide'}
         />
         <div className={`flex-1 min-w-0 transition-[padding] duration-200 ease-out ${isSidebarCollapsed ? 'pl-1.5' : ''}`}>
           <div
@@ -1437,7 +1532,7 @@ const App: React.FC = () => {
                 onNewChat={handleNewChat}
                 onCreateSkillByChat={handleCreateSkillByChat}
                 updateBadge={collapsedHeaderUpdateBadge}
-                readOnly={enterpriseConfig?.ui?.skills === 'readonly'}
+                readOnly={activeEnterpriseConfig.ui?.skills === 'readonly'}
               />
             ) : mainView === 'scheduledTasks' ? (
               <ScheduledTasksView
@@ -1469,13 +1564,15 @@ const App: React.FC = () => {
                 isSidebarCollapsed={isSidebarCollapsed}
                 onToggleSidebar={handleToggleSidebar}
                 updateBadge={collapsedHeaderUpdateBadge}
-                readOnly={enterpriseConfig?.ui?.sites === 'readonly'}
+                readOnly={activeEnterpriseConfig.ui?.sites === 'readonly'}
               />
             ) : (
               <CoworkView
+                enterpriseWorkbench={activeEnterpriseConfig.workbench}
                 onRequestAppSettings={handleShowSettings}
-                onShowSkills={handleShowSkills}
-                onShowKits={handleShowKits}
+                onShowSkills={activeEnterpriseConfig.ui?.skills === 'hide' ? undefined : handleShowSkills}
+                onShowKits={activeEnterpriseConfig.ui?.kits === 'hide' ? undefined : handleShowKits}
+                showVoiceInput={activeEnterpriseConfig.ui?.login !== 'hide'}
                 isSidebarCollapsed={isSidebarCollapsed}
                 onToggleSidebar={handleToggleSidebar}
                 onNewChat={handleNewChat}
@@ -1505,16 +1602,17 @@ const App: React.FC = () => {
       {/* 设置窗口显示在所有主内容之上，但不影响主界面的交互 */}
       {showSettings && (
         <Settings
+          appName={activeAppName}
           onClose={handleCloseSettings}
           onStartAiSkin={handleStartAiSkinFromSettings}
           initialTab={settingsOptions.initialTab}
           initialTabRequestId={settingsOptions.requestId}
           notice={settingsOptions.notice}
           onUpdateFound={handleUpdateFound}
-          enterpriseConfig={enterpriseConfig}
+          enterpriseConfig={activeEnterpriseConfig}
         />
       )}
-      {showUpdateModal && updateInfo && (
+      {!activeEnterpriseConfig.disableUpdate && showUpdateModal && updateInfo && (
         <AppUpdateModal
           updateState={appUpdateState}
           onCancel={() => {

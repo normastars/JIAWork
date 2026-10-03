@@ -390,10 +390,10 @@ function translateIMError(error: string | null): string {
   return error;
 }
 
-const IMSettings: React.FC = () => {
+const IMSettings: React.FC<{ wecomOnly?: boolean }> = ({ wecomOnly = false }) => {
   const dispatch = useDispatch();
   const { config, status, isLoading } = useSelector((state: RootState) => state.im);
-  const [activePlatform, setActivePlatform] = useState<Platform>('weixin');
+  const [activePlatform, setActivePlatform] = useState<Platform>(wecomOnly ? 'wecom' : 'weixin');
   const [activeQQInstanceId, setActiveQQInstanceId] = useState<string | null>(null);
   const [activeFeishuInstanceId, setActiveFeishuInstanceId] = useState<string | null>(null);
   const [activeDingTalkInstanceId, setActiveDingTalkInstanceId] = useState<string | null>(null);
@@ -1042,8 +1042,8 @@ const IMSettings: React.FC = () => {
 
   // Compute visible platforms based on language
   const platforms = useMemo<Platform[]>(() => {
-    return getVisibleIMPlatforms(language) as Platform[];
-  }, [language]);
+    return wecomOnly ? ['wecom'] : getVisibleIMPlatforms(language) as Platform[];
+  }, [language, wecomOnly]);
 
   // Ensure activePlatform is always in visible platforms when language changes
   useEffect(() => {

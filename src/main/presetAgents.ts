@@ -1,3 +1,6 @@
+import fs from 'fs';
+import path from 'path';
+
 import { AgentAvatarSvg, encodeAgentAvatarIcon } from '../shared/agent/avatar';
 import type { CreateAgentRequest } from './coworkStore';
 import { getLanguage } from './i18n';
@@ -16,7 +19,43 @@ export interface PresetAgent {
   skillIds: string[];
 }
 
+export const GardyPresetAgentId = {
+  SpreadsheetAnalyst: 'gardy-spreadsheet-analyst',
+  DocumentAssistant: 'gardy-document-assistant',
+  WorkSummaryAssistant: 'gardy-work-summary-assistant',
+} as const;
+
+export const resolveGardyPromptDir = (moduleDir: string): string | undefined => [
+  path.resolve(moduleDir, '../resources/gardy-prompts'), // Vite main bundle
+  path.resolve(moduleDir, '../../../resources/gardy-prompts'), // tsc output
+  path.resolve(moduleDir, '../../resources/gardy-prompts'), // source tests
+].find(candidate => fs.existsSync(candidate));
+
+const GARDY_PROMPT_DIR = resolveGardyPromptDir(__dirname);
+
+const readGardyPrompt = (fileName: string): string => {
+  if (!GARDY_PROMPT_DIR) {
+    throw new Error('GARDY prompt files are missing from the application package.');
+  }
+  return fs.readFileSync(path.join(GARDY_PROMPT_DIR, fileName), 'utf8').trim();
+};
+
+const GardySystemPrompt = {
+  SpreadsheetAnalyst: readGardyPrompt('spreadsheet-analyst.md'),
+  DocumentAssistant: readGardyPrompt('document-assistant.md'),
+  WorkSummaryAssistant: readGardyPrompt('work-summary-assistant.md'),
+} as const;
+
 const PresetAgentIcon = {
+  GardySpreadsheetAnalyst: encodeAgentAvatarIcon({
+    svg: AgentAvatarSvg.Data,
+  }),
+  GardyDocumentAssistant: encodeAgentAvatarIcon({
+    svg: AgentAvatarSvg.Document,
+  }),
+  GardyWorkSummaryAssistant: encodeAgentAvatarIcon({
+    svg: AgentAvatarSvg.Briefcase,
+  }),
   StockExpert: encodeAgentAvatarIcon({
     svg: AgentAvatarSvg.Data,
   }),
@@ -41,11 +80,61 @@ const PresetAgentIcon = {
  * Hardcoded preset agent templates.
  * Users can add these via the "Choose Preset" flow in the UI.
  *
- * Names and descriptions use Chinese as the primary language since
- * the target audience is Chinese-speaking users.  System prompts are
- * kept bilingual so models respond naturally in the user's language.
+ * Names and descriptions are localized. GARDY system prompts come from
+ * separate English Markdown files and require Chinese user-facing output.
  */
 export const PRESET_AGENTS: PresetAgent[] = [
+  {
+    id: GardyPresetAgentId.SpreadsheetAnalyst,
+    name: '表格分析专家',
+    nameEn: 'Spreadsheet Analysis Expert',
+    icon: PresetAgentIcon.GardySpreadsheetAnalyst,
+    description:
+      '面向嘉迪业务表格的数据清洗、指标分析与可视化，输出可复核的结论和规范工作簿。',
+    descriptionEn:
+      'Clean, analyze, and visualize GARDY business spreadsheets with traceable findings and review-ready workbooks.',
+    identity:
+      '你是嘉迪团队的表格分析专家，擅长整理业务台账、核对数据质量、分析指标并制作清晰可靠的 Excel 工作簿。你以用户提供的字段定义、统计口径和模板为准，不自行补写业务规则。',
+    identityEn:
+      'You are GARDY\'s spreadsheet analysis expert. You organize operational records, validate data quality, analyze metrics, and produce clear, reliable Excel workbooks. Follow the field definitions, calculation rules, and templates supplied by the user without inventing business rules.',
+    systemPrompt: GardySystemPrompt.SpreadsheetAnalyst,
+    systemPromptEn: GardySystemPrompt.SpreadsheetAnalyst,
+    skillIds: ['xlsx'],
+  },
+  {
+    id: GardyPresetAgentId.DocumentAssistant,
+    name: '文档专家',
+    nameEn: 'Document Expert',
+    icon: PresetAgentIcon.GardyDocumentAssistant,
+    description:
+      '面向嘉迪业务文档的阅读、起草、审校和格式整理，保留来源、版本与待确认信息。',
+    descriptionEn:
+      'Read, draft, review, and format GARDY business documents while preserving sources, versions, and open questions.',
+    identity:
+      '你是嘉迪团队的文档专家，负责从业务材料中准确提取信息，并协助起草、审校和整理专业文档。你尊重现有模板和原文事实，对未确认的信息明确标注，不擅自设定制度或流程。',
+    identityEn:
+      'You are GARDY\'s document expert. You accurately extract information from business materials and help draft, review, and organize professional documents. Respect existing templates and source facts, clearly flag unconfirmed information, and do not invent policies or procedures.',
+    systemPrompt: GardySystemPrompt.DocumentAssistant,
+    systemPromptEn: GardySystemPrompt.DocumentAssistant,
+    skillIds: ['docx', 'pdf'],
+  },
+  {
+    id: GardyPresetAgentId.WorkSummaryAssistant,
+    name: '工作总结专家',
+    nameEn: 'Work Summary Expert',
+    icon: PresetAgentIcon.GardyWorkSummaryAssistant,
+    description:
+      '汇总嘉迪日报、周报、月报和项目材料，提炼成果、问题、计划及需协调事项。',
+    descriptionEn:
+      'Turn GARDY daily, weekly, monthly, and project updates into clear results, issues, plans, and coordination needs.',
+    identity:
+      '你是嘉迪团队的工作总结专家，擅长把零散记录、会议材料和业务数据整理成重点清晰、事实可靠的工作总结。你突出成果和进展，也如实呈现问题、风险、下一步计划及需要协调的事项。',
+    identityEn:
+      'You are GARDY\'s work summary expert. You turn scattered notes, meeting materials, and business data into focused, fact-based work summaries. Highlight results and progress while accurately presenting issues, risks, next steps, and coordination needs.',
+    systemPrompt: GardySystemPrompt.WorkSummaryAssistant,
+    systemPromptEn: GardySystemPrompt.WorkSummaryAssistant,
+    skillIds: ['docx', 'xlsx', 'pptx'],
+  },
   {
     id: 'stockexpert',
     name: '股票助手',

@@ -29,6 +29,7 @@ import http from 'http';
 import path from 'path';
 
 import { AgentId } from '../../shared/agent';
+import { APP_NAME } from '../appConstants';
 
 // ─── Constants mirrored from openclaw/extensions/xai/xai-oauth.ts ───────────
 const XAI_OAUTH_CLIENT_ID = 'b1a00492-073a-47ea-816f-4c329264a828';
@@ -452,7 +453,7 @@ function renderCallbackHtml(success: boolean, message: string): string {
   );
   const color = success ? '#16a34a' : '#dc2626';
   return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>LobsterAI · xAI Login</title>
+<html lang="en"><head><meta charset="utf-8"><title>${APP_NAME} · xAI Login</title>
 <style>
   body { font-family: -apple-system, system-ui, sans-serif; background: #0b0d10; color: #e5e7eb; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
   .card { background: #14171c; padding: 32px 40px; border-radius: 16px; border: 1px solid #262b33; max-width: 420px; }
@@ -567,7 +568,7 @@ function waitForCallback(expectedState: string): Promise<{ code: string }> {
       }
 
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(renderCallbackHtml(true, 'You can now close this tab and return to LobsterAI.'));
+      res.end(renderCallbackHtml(true, `You can now close this tab and return to ${APP_NAME}.`));
       finish(undefined, { code });
     });
 
