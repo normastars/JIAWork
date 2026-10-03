@@ -63,6 +63,64 @@ describe('enterpriseConfigSync', () => {
     expect(manifest.sync.openclaw).toBe(false);
   });
 
+  test('syncEnterpriseConfig imports remote MCP URLs and headers', async () => {
+    const configDir = path.join(tmpDir, 'enterprise-config');
+    const mcpDir = path.join(configDir, 'mcp');
+    fs.mkdirSync(mcpDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(configDir, 'manifest.json'),
+      JSON.stringify({
+        version: '1.0.0',
+        name: 'Test',
+        sync: { openclaw: false, skills: false, agents: false, mcp: 'overwrite' },
+      }),
+    );
+    fs.writeFileSync(
+      path.join(mcpDir, 'servers.json'),
+      JSON.stringify([
+        {
+          name: 'Remote MCP',
+          description: 'Enterprise remote MCP server',
+          transportType: 'http',
+          url: 'https://mcp.example.com/api',
+          headers: {
+            Authorization: 'Bearer enterprise-token',
+            'X-Tenant-ID': 'tenant-1',
+          },
+        },
+      ]),
+    );
+
+    const mod = await import('./enterpriseConfigSync');
+    const upsertByName = vi.fn();
+    const clearAll = vi.fn();
+
+    mod.syncEnterpriseConfig(
+      configDir,
+      { get: () => undefined, set: () => undefined } as any,
+      {} as any,
+      upsertByName,
+      clearAll,
+      () => undefined,
+      () => undefined,
+    );
+
+    expect(clearAll).toHaveBeenCalledOnce();
+    expect(upsertByName).toHaveBeenCalledWith({
+      name: 'Remote MCP',
+      description: 'Enterprise remote MCP server',
+      transportType: 'http',
+      command: undefined,
+      args: undefined,
+      env: undefined,
+      url: 'https://mcp.example.com/api',
+      headers: {
+        Authorization: 'Bearer enterprise-token',
+        'X-Tenant-ID': 'tenant-1',
+      },
+    });
+  });
+
   test('app_config.json roundtrips correctly', () => {
     const appConfig = {
       api: { key: 'sk-test', baseUrl: 'https://api.example.com' },

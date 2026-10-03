@@ -423,6 +423,7 @@ interface CoworkPromptInputProps {
   contextAgentId?: string;
   onManageSkills?: () => void;
   onManageKits?: () => void;
+  showVoiceInput?: boolean;
   sessionId?: string;
   contextUsageControl?: React.ReactNode;
   goal?: CoworkGoal | null;
@@ -459,6 +460,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
       contextAgentId,
       onManageSkills,
       onManageKits,
+      showVoiceInput = true,
       sessionId,
       contextUsageControl,
       goal,
@@ -2851,7 +2853,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
             <PaperClipIcon className="h-5 w-5 shrink-0 text-secondary" />
             <span className="min-w-0 truncate">{i18nService.t('coworkAddFile')}</span>
           </button>
-          <button
+          {onManageSkills && <button
             ref={skillMenuItemRef}
             type="button"
             onClick={handleOpenSkillsPopover}
@@ -2867,7 +2869,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
             <SkillIcon className="h-5 w-5 shrink-0 text-secondary" />
             <span className="min-w-0 flex-1 truncate">{i18nService.t('useSkill')}</span>
             <ChevronRightIcon className="h-4 w-4 shrink-0 text-secondary" />
-          </button>
+          </button>}
           <button
             type="button"
             onClick={() => {
@@ -2907,7 +2909,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
             <span className="min-w-0 flex-1 truncate">{i18nService.t('coworkPlanMode')}</span>
           </button>
 
-          <SkillsPopover
+          {onManageSkills && <SkillsPopover
             isOpen={showSkillsPopover}
             onClose={() => setShowSkillsPopover(false)}
             onSelectSkill={handleSelectSkill}
@@ -2917,7 +2919,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
             autoFocusSearch={false}
             onMouseEnter={cancelCloseSkillsPopover}
             onMouseLeave={scheduleCloseSkillsPopover}
-          />
+          />}
         </div>
       )}
     </div>
@@ -2926,7 +2928,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
   const largeInputActions = !remoteManaged ? (
     <div className="flex items-center gap-0.5">
       {addMenuAction}
-      <KitsButton
+      {onManageKits && <KitsButton
         onSelectKit={handleSelectKit}
         onManageKits={handleManageKits}
         onOpenChange={(open) => {
@@ -2934,7 +2936,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
             activeKitCount: activeKitIds.length,
           });
         }}
-      />
+      />}
     </div>
   ) : null;
 
@@ -2965,7 +2967,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
   );
   const largeSendButtonSizeClass = useCompactSendButton ? 'h-7 w-7' : 'h-8 w-8';
   const largeSendIconSizeClass = useCompactSendButton ? 'h-4 w-4' : 'h-[18px] w-[18px]';
-  const largeVoiceInputButton = !remoteManaged ? renderVoiceInputButton(
+  const largeVoiceInputButton = !remoteManaged && showVoiceInput ? renderVoiceInputButton(
     `flex ${largeSendButtonSizeClass} shrink-0 items-center justify-center rounded-full`,
     largeSendIconSizeClass,
   ) : null;
@@ -3833,7 +3835,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
                 >
                   <PaperClipIcon className="h-5 w-5" />
                 </button>
-                {renderVoiceInputButton(
+                {showVoiceInput && renderVoiceInputButton(
                   'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full',
                   'h-5 w-5',
                 )}

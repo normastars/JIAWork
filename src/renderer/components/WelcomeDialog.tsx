@@ -13,6 +13,7 @@ const LOGO_RINGS: Array<{ size: number; opacity: number }> = [
 ];
 
 interface WelcomeDialogProps {
+  appName: string;
   onLogin: () => void;
   loginPending: boolean;
   onCancelLogin: () => void;
@@ -22,6 +23,7 @@ interface WelcomeDialogProps {
 // First-launch gate merging terms consent and login into one screen:
 // continuing via either action counts as accepting the service agreement.
 const WelcomeDialog: React.FC<WelcomeDialogProps> = ({
+  appName,
   onLogin,
   loginPending,
   onCancelLogin,
@@ -75,8 +77,8 @@ const WelcomeDialog: React.FC<WelcomeDialogProps> = ({
             ))}
           </div>
           <img
-            src="logo.png"
-            alt="LobsterAI"
+            src="gardy-mark.svg"
+            alt={appName}
             width={72}
             height={72}
             className="relative rounded-2xl select-none"

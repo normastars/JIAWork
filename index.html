@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LobsterAI</title>
+    <title>嘉迪 AI 工作台</title>
     <style>
       /* Pre-React splash: a static replica of EngineStartupOverlay so the whole
          startup (window shown -> renderer init -> engine starting) is one
@@ -215,7 +215,7 @@
         <div class="splash-content">
           <div class="splash-logo-wrap">
             <div class="splash-logo-glow"></div>
-            <img class="splash-logo" src="logo.png" alt="LobsterAI" width="72" height="72" draggable="false" />
+            <img class="splash-logo" src="gardy-mark.svg" alt="嘉迪 AI 工作台" width="72" height="72" draggable="false" />
           </div>
           <h1 class="splash-title" id="splash-title">AI 引擎启动中</h1>
           <p class="splash-subtitle" id="splash-subtitle">加载中...</p>
@@ -235,15 +235,12 @@
       </div>
     </div>
     <script>
-      // 本地化启动屏文案并随机选一条小提示。
-      // 'lobster-language' 由 i18n.ts 在语言确定后写入；首次启动回退到系统语言。
+      // 嘉迪企业版固定使用简体中文；同时写入语言提示供 React 启动阶段复用。
       // 文案需与 src/renderer/services/i18n.ts 中的 engineStarting* / loading 保持同步。
       (function () {
         try {
-          var lang = localStorage.getItem('lobster-language');
-          if (lang !== 'zh' && lang !== 'en') {
-            lang = navigator.language === 'zh-CN' ? 'zh' : 'en';
-          }
+          var lang = 'zh';
+          localStorage.setItem('lobster-language', lang);
           var texts = {
             zh: {
               title: 'AI 引擎启动中',

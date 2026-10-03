@@ -71,6 +71,7 @@ import type {
 import { OpenClawGatewayFailureKind } from '../../../shared/openclawEngine/constants';
 import { OpenClawTranscriptSafetyStatus } from '../../../shared/openclawTranscript/constants';
 import { ProviderName } from '../../../shared/providers';
+import { APP_NAME } from '../../appConstants';
 import type { Agent, CoworkExecutionMode, CoworkMessage, CoworkMessageMetadata, CoworkSession, CoworkSessionStatus, CoworkStore } from '../../coworkStore';
 import { t } from '../../i18n';
 import { MediaGenerationTool } from '../../mediaGenerationPolicy';
@@ -1639,7 +1640,10 @@ export function resolveOpenClawRuntimeErrorMessage(
 
   // OpenClaw's friendly wrapper may already say "rate limit" even when its
   // preserved raw metadata identifies a provider-capacity failure.
-  if (metadataClassifiedKey === CoworkErrorI18nKey.ModelOverloaded) {
+  if (
+    metadataClassifiedKey === CoworkErrorI18nKey.ModelOverloaded
+    || metadataClassifiedKey === CoworkErrorI18nKey.ToolCallingUnsupported
+  ) {
     consumeRecentOpenClawTokenProxyQuotaError();
     return t(metadataClassifiedKey);
   }
@@ -2177,7 +2181,7 @@ const buildMediaReferencePromptSection = (mediaReferences?: CoworkMediaAttachmen
   if (refs.length === 0) return '';
 
   const lines = [
-    '[LobsterAI media reference mapping]',
+    `[${APP_NAME} media reference mapping]`,
     'The current user request contains explicit @ media tokens. Treat these mappings as authoritative and do not guess which uploaded attachment a token means.',
     'When calling lobsterai_image_generate or lobsterai_video_generate, pass mapped file paths or URLs as tool arguments. Do not pass @ media tokens as image, images, firstFrame, lastFrame, referenceImages, media.url, video, or videos values.',
     'For lobsterai_image_generate, prefer image with the mapped path for one referenced image and images for multiple referenced images.',
@@ -2192,7 +2196,7 @@ const buildMediaReferencePromptSection = (mediaReferences?: CoworkMediaAttachmen
     const locations = [
       ref.localPath ? `localPath "${sanitizeMediaReferenceText(ref.localPath)}"` : '',
       ref.remoteUrl ? `remoteUrl "${sanitizeMediaReferenceText(ref.remoteUrl)}"` : '',
-      !ref.localPath && !ref.remoteUrl && ref.dataUrl ? 'dataUrl fallback available through LobsterAI host' : '',
+      !ref.localPath && !ref.remoteUrl && ref.dataUrl ? `dataUrl fallback available through ${APP_NAME} host` : '',
     ].filter(Boolean);
     const locationText = locations.length > 0 ? `, ${locations.join(', ')}` : '';
     lines.push(`- ${ref.token}: ${mediaType} attachment #${ref.index}, file "${sanitizeMediaReferenceText(ref.fileName)}", MIME ${sanitizeMediaReferenceText(ref.mimeType)}${locationText}.`);
@@ -5560,9 +5564,9 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
 
   private buildSystemPromptPrefix(systemPrompt: string): string {
     return [
-      '[LobsterAI system instructions]',
+      `[${APP_NAME} system instructions]`,
       'Apply the instructions below as the highest-priority guidance for this session.',
-      'If earlier LobsterAI system instructions exist, replace them with this version.',
+      `If earlier ${APP_NAME} system instructions exist, replace them with this version.`,
       systemPrompt,
     ].join('\n');
   }
@@ -5607,7 +5611,7 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
     }
 
     const sections = [
-      '[Context bridge from previous LobsterAI conversation]',
+      `[Context bridge from previous ${APP_NAME} conversation]`,
       'Use this prior context for continuity. Focus your final answer on the current request.',
     ];
 
@@ -5719,7 +5723,7 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
     const client = new GatewayClient({
       url: connection.url,
       token: connection.token,
-      clientDisplayName: 'LobsterAI',
+      clientDisplayName: APP_NAME,
       clientVersion: app.getVersion(),
       mode: 'backend',
       caps: [OPENCLAW_GATEWAY_TOOL_EVENTS_CAP],

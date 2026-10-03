@@ -4,7 +4,13 @@ import os from 'os';
 import path from 'path';
 import { afterEach, expect, test, vi } from 'vitest';
 
-import { AgentAvatarSvg, DefaultAgentAvatarIcon, DefaultAgentProfile, encodeAgentAvatarIcon } from '../shared/agent';
+import {
+  AgentAvatarSvg,
+  DefaultAgentAvatarIcon,
+  DefaultAgentProfile,
+  encodeAgentAvatarIcon,
+  LegacyDefaultAgentAvatarIcon,
+} from '../shared/agent';
 
 vi.mock('electron', () => ({
   app: {
@@ -142,6 +148,60 @@ test('upgrades legacy default agent name during migration', async () => {
   store.close();
 });
 
+test('upgrades the previous LobsterAI default agent name during migration', async () => {
+  const userDataPath = createTempUserDataPath();
+  createLegacyDatabase(userDataPath);
+
+  const legacyDb = new Database(path.join(userDataPath, DB_FILENAME));
+  legacyDb.prepare("UPDATE agents SET name = 'LobsterAI' WHERE id = 'main'").run();
+  legacyDb.close();
+
+  const store = await SqliteStore.create(userDataPath);
+  const row = store.getDatabase()
+    .prepare("SELECT name FROM agents WHERE id = 'main'")
+    .get() as { name: string };
+
+  expect(row.name).toBe(DefaultAgentProfile.Name);
+
+  store.close();
+});
+
+test('upgrades the previous English GARDY default agent name during migration', async () => {
+  const userDataPath = createTempUserDataPath();
+  createLegacyDatabase(userDataPath);
+
+  const legacyDb = new Database(path.join(userDataPath, DB_FILENAME));
+  legacyDb.prepare("UPDATE agents SET name = 'GARDY AI Workbench' WHERE id = 'main'").run();
+  legacyDb.close();
+
+  const store = await SqliteStore.create(userDataPath);
+  const row = store.getDatabase()
+    .prepare("SELECT name FROM agents WHERE id = 'main'")
+    .get() as { name: string };
+
+  expect(row.name).toBe(DefaultAgentProfile.Name);
+
+  store.close();
+});
+
+test('upgrades the previous Chinese GARDY default agent name during migration', async () => {
+  const userDataPath = createTempUserDataPath();
+  createLegacyDatabase(userDataPath);
+
+  const legacyDb = new Database(path.join(userDataPath, DB_FILENAME));
+  legacyDb.prepare("UPDATE agents SET name = '嘉迪助手' WHERE id = 'main'").run();
+  legacyDb.close();
+
+  const store = await SqliteStore.create(userDataPath);
+  const row = store.getDatabase()
+    .prepare("SELECT name FROM agents WHERE id = 'main'")
+    .get() as { name: string };
+
+  expect(row.name).toBe(DefaultAgentProfile.Name);
+
+  store.close();
+});
+
 test('migrates legacy agent icons to the default svg avatar', async () => {
   const userDataPath = createTempUserDataPath();
   createLegacyDatabase(userDataPath);
@@ -177,6 +237,25 @@ test('migrates legacy agent icons to the default svg avatar', async () => {
     { id: 'legacy-designed', icon: DefaultAgentAvatarIcon },
     { id: 'main', icon: DefaultAgentAvatarIcon },
   ]);
+
+  store.close();
+});
+
+test('migrates the previous LobsterAI main agent avatar', async () => {
+  const userDataPath = createTempUserDataPath();
+  createLegacyDatabase(userDataPath);
+
+  const legacyDb = new Database(path.join(userDataPath, DB_FILENAME));
+  legacyDb.prepare("UPDATE agents SET icon = ? WHERE id = 'main'")
+    .run(LegacyDefaultAgentAvatarIcon);
+  legacyDb.close();
+
+  const store = await SqliteStore.create(userDataPath);
+  const row = store.getDatabase()
+    .prepare("SELECT icon FROM agents WHERE id = 'main'")
+    .get() as { icon: string };
+
+  expect(row.icon).toBe(DefaultAgentAvatarIcon);
 
   store.close();
 });

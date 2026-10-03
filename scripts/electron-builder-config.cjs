@@ -55,7 +55,7 @@ function resolveWebPackageUrl(keyfrom) {
         `is required when ${WEB_INSTALLER_ENV}=1.`,
     );
   }
-  return `${raw}/${keyfrom}/${expectedPackageFileName()}`;
+  return `${raw}/${keyfrom}/${encodeURIComponent(expectedPackageFileName())}`;
 }
 
 function asArray(value) {
@@ -109,12 +109,12 @@ delete config.extraResources;
 
 config.dmg = {
   ...(config.dmg || {}),
-  artifactName: `LobsterAI-darwin-\${arch}-\${version}-${keyfrom}.\${ext}`,
+  artifactName: `GARDY-AI-Workbench-darwin-\${arch}-\${version}-${keyfrom}.\${ext}`,
 };
 
 config.nsis = {
   ...(config.nsis || {}),
-  artifactName: `LobsterAI-Setup-\${arch}-\${version}-${keyfrom}.\${ext}`,
+  artifactName: `GARDY-AI-Workbench-Setup-\${arch}-\${version}-${keyfrom}.\${ext}`,
 };
 
 if (isWebInstallerEnabled()) {
@@ -127,7 +127,7 @@ if (isWebInstallerEnabled()) {
   };
   config.nsisWeb = {
     appPackageUrl: resolveWebPackageUrl(keyfrom),
-    artifactName: `LobsterAI-WebSetup-\${arch}-\${version}-${keyfrom}.\${ext}`,
+    artifactName: `GARDY-AI-Workbench-WebSetup-\${arch}-\${version}-${keyfrom}.\${ext}`,
   };
   console.log(`[WebInstaller] nsis-web target enabled, app package url: ${config.nsisWeb.appPackageUrl}`);
 }

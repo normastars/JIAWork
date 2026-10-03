@@ -21,6 +21,7 @@ import os from 'os';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 
+import gardyEnterpriseManifest from '../../enterprise-configs/gardy/manifest.json';
 import { CoworkSystemMessageKind } from '../common/coworkSystemMessages';
 import { buildGoalSettingMessageMetadata } from '../common/goalCommandDisplay';
 import type { OpenClawSessionPatch } from '../common/openclawSession';
@@ -165,7 +166,7 @@ import {
 import type { ShellOpenFailureReason as ShellOpenFailureReasonType } from '../shared/shell/constants';
 import { type ShellGetBrowserAppsInput, ShellIpc, ShellOpenFailureReason } from '../shared/shell/constants';
 import { AgentManager } from './agentManager';
-import { APP_NAME, APP_USER_MODEL_ID, DB_FILENAME } from './appConstants';
+import { APP_DATA_DIRECTORY_NAME, APP_NAME, APP_USER_MODEL_ID, DB_FILENAME } from './appConstants';
 import { createLocalFileProtocolResponse } from './artifactLocalFileProtocol';
 import { authQuotaGateStateFromQuota, AuthSubscriptionStatus, createDefaultAuthQuotaGateState, normalizeAuthQuota } from './authQuota';
 import { type AutoLaunchStatus, getAutoLaunchStatus, isAutoLaunched, setAutoLaunchEnabled } from './autoLaunchManager';
@@ -293,6 +294,9 @@ import {
   resolveEnterpriseConfigPath,
   syncEnterpriseConfig,
 } from './libs/enterpriseConfigSync';
+import { syncGardyPresetIdentities, syncGardyPresetNames } from './libs/gardyPresetNameSync';
+import { syncGardyPresetPrompts } from './libs/gardyPresetPromptSync';
+import { removeStockGardyBootstrap } from './libs/gardyWorkspaceBootstrap';
 import {
   createOfficePreviewSession,
   createPreviewSession,
@@ -425,6 +429,7 @@ import {
 } from './openclawSessionPolicy/store';
 import { registerVoiceInputPermissionHandler } from './permissions/voiceInputPermission';
 import { isHiddenUserPluginId } from './plugins/pluginManager';
+import { GardyPresetAgentId } from './presetAgents';
 import { SkillManager } from './skills/skillManager';
 import { getSkillServiceManager } from './skills/skillServices';
 import {
@@ -1677,7 +1682,7 @@ const savePngWithDialog = async (
 
 const configureUserDataPath = (): void => {
   const appDataPath = app.getPath('appData');
-  const preferredUserDataPath = path.join(appDataPath, APP_NAME);
+  const preferredUserDataPath = path.join(appDataPath, APP_DATA_DIRECTORY_NAME);
   const currentUserDataPath = app.getPath('userData');
 
   if (currentUserDataPath !== preferredUserDataPath) {
@@ -1691,7 +1696,7 @@ let startupDataMigrationRestoreResult: DataMigrationLastRestoreResult | null = n
 try {
   startupDataMigrationRestoreResult = performPendingDataMigrationRestoreSync({
     userDataPath: app.getPath('userData'),
-    rollbackRootPath: path.join(app.getPath('appData'), `${APP_NAME}-migration-rollbacks`),
+    rollbackRootPath: path.join(app.getPath('appData'), `${APP_DATA_DIRECTORY_NAME}-migration-rollbacks`),
   });
 } catch (error) {
   console.error('[DataMigration] pending restore failed before logger initialization:', error);
@@ -1991,9 +1996,13 @@ const bootstrapOpenClawEngine = async (
 
       // Ensure IDENTITY.md has default content in the main agent workspace
       try {
-        ensureDefaultIdentity(getMainAgentWorkspacePath(manager.getStateDir()));
+        const workspacePath = getMainAgentWorkspacePath(manager.getStateDir());
+        ensureDefaultIdentity(workspacePath);
+        if (removeStockGardyBootstrap(workspacePath)) {
+          console.log('[Gardy] removed default OpenClaw bootstrap instructions');
+        }
       } catch (err) {
-        console.warn('[OpenClaw] bootstrap: ensureDefaultIdentity failed (non-fatal):', err);
+        console.warn('[OpenClaw] bootstrap: workspace setup failed (non-fatal):', err);
       }
 
       const syncResult = await syncOpenClawConfig({
@@ -3850,6 +3859,7 @@ type AppConfigSettings = {
   shortcuts?: Record<string, unknown>;
   theme?: string;
   language?: string;
+  language_initialized?: boolean;
   useSystemProxy?: boolean;
   sqliteAutoBackupEnabled?: boolean;
   usageAnalyticsEnabled?: boolean;
@@ -6992,7 +7002,7 @@ if (!gotTheLock) {
       console.error('[DataMigration] backup failed:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to back up LobsterAI data',
+        error: error instanceof Error ? error.message : `Failed to back up ${APP_NAME} data`,
       };
     }
   });
@@ -7030,7 +7040,7 @@ if (!gotTheLock) {
 
       const restoreResult = performDataMigrationRestoreSync({
         userDataPath: app.getPath('userData'),
-        rollbackRootPath: path.join(app.getPath('appData'), `${APP_NAME}-migration-rollbacks`),
+        rollbackRootPath: path.join(app.getPath('appData'), `${APP_DATA_DIRECTORY_NAME}-migration-rollbacks`),
         archivePath,
       });
       const success = restoreResult?.status === DataMigrationRestoreStatus.Success;
@@ -7051,11 +7061,11 @@ if (!gotTheLock) {
         success,
         scheduledRestart: rendererReleased,
         rollbackPath: restoreResult?.rollbackPath,
-        error: success ? undefined : restoreResult?.error || 'Failed to import LobsterAI data backup',
+        error: success ? undefined : restoreResult?.error || `Failed to import ${APP_NAME} data backup`,
       };
     } catch (error) {
       isCleanupInProgress = false;
-      const message = error instanceof Error ? error.message : 'Failed to import LobsterAI data backup';
+      const message = error instanceof Error ? error.message : `Failed to import ${APP_NAME} data backup`;
       console.error('[DataMigration] restore scheduling failed:', error);
       if (rendererReleased) {
         dialog.showErrorBox(t('dataMigrationRestoreDialogTitle'), message);
@@ -12055,6 +12065,20 @@ if (!gotTheLock) {
     store = await initStore();
     profiler.measure('initStore');
     console.log('[Main] initApp: store initialized');
+    const gardyLanguage = gardyEnterpriseManifest.language === 'en' ? 'en' : 'zh';
+    const storedAppConfig = store.get<AppConfigSettings>('app_config') ?? {};
+    if (
+      storedAppConfig.language !== gardyLanguage
+      || storedAppConfig.language_initialized !== true
+    ) {
+      store.set('app_config', {
+        ...storedAppConfig,
+        language: gardyLanguage,
+        language_initialized: true,
+      });
+      console.log(`[Main] enforced GARDY enterprise language: ${gardyLanguage}`);
+    }
+    setLanguage(gardyLanguage);
     initializeKeyfromAttribution(store);
     refreshEndpointsTestMode(store);
     sqliteBackupManager = new SqliteBackupManager(app.getPath('userData'));
@@ -12191,6 +12215,8 @@ if (!gotTheLock) {
                 command: server.command,
                 args: server.args,
                 env: server.env,
+                url: server.url,
+                headers: server.headers,
               });
             } else {
               mcpStoreInstance.createServer({
@@ -12200,6 +12226,8 @@ if (!gotTheLock) {
                 command: server.command,
                 args: server.args,
                 env: server.env,
+                url: server.url,
+                headers: server.headers,
               });
             }
           },
@@ -12304,11 +12332,34 @@ if (!gotTheLock) {
     // Agent model migration — runs after cache warmup so resolveMatchedProvider
     // can match lobsterai-server models without falling back.
     const defaultAgentModelRef = resolveDefaultAgentModelRef();
+    const agentManagerInstance = getAgentManager();
+    let installedGardyPresetCount = 0;
+    for (const presetId of Object.values(GardyPresetAgentId)) {
+      if (agentManagerInstance.getAgent(presetId)) continue;
+      if (agentManagerInstance.addPresetAgent(presetId, defaultAgentModelRef)) {
+        installedGardyPresetCount++;
+      }
+    }
+    if (installedGardyPresetCount > 0) {
+      console.log(`[Agents] installed ${installedGardyPresetCount} GARDY preset agent(s)`);
+    }
+    const renamedGardyPresetCount = syncGardyPresetNames(agentManagerInstance);
+    if (renamedGardyPresetCount > 0) {
+      console.log(`[Agents] renamed ${renamedGardyPresetCount} GARDY preset agent(s)`);
+    }
+    const updatedGardyIdentityCount = syncGardyPresetIdentities(agentManagerInstance);
+    if (updatedGardyIdentityCount > 0) {
+      console.log(`[Agents] updated ${updatedGardyIdentityCount} GARDY preset identity text(s)`);
+    }
+    const updatedGardyPresetCount = syncGardyPresetPrompts(store, agentManagerInstance);
+    if (updatedGardyPresetCount > 0) {
+      console.log(`[Agents] updated ${updatedGardyPresetCount} GARDY preset prompt(s)`);
+    }
     const backfilledAgentModels = getCoworkStore().backfillEmptyAgentModels(defaultAgentModelRef);
     const qualifiedAgentModels = migrateAgentModelRefs({
       defaultModelRef: defaultAgentModelRef,
       availableProviders: buildAvailableOpenClawProviders(),
-      agents: getAgentManager().listAgents(),
+      agents: agentManagerInstance.listAgents(),
       updateAgent: (id, patch) => getCoworkStore().updateAgent(id, patch),
     });
     if (backfilledAgentModels > 0 || qualifiedAgentModels > 0) {
@@ -12328,6 +12379,15 @@ if (!gotTheLock) {
       );
     } catch (err) {
       console.warn('[OpenClaw] main agent workspace migration failed (non-fatal):', err);
+    }
+
+    try {
+      const workspacePath = getMainAgentWorkspacePath(getOpenClawEngineManager().getStateDir());
+      if (removeStockGardyBootstrap(workspacePath)) {
+        console.log('[Gardy] removed default OpenClaw bootstrap instructions');
+      }
+    } catch (error) {
+      console.warn('[Gardy] failed to inspect workspace bootstrap instructions:', error);
     }
 
     profiler.mark('syncOpenClawConfig');

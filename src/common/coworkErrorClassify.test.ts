@@ -155,6 +155,16 @@ test('model: Ollama model xxx not found', () => {
   expect(classifyError("model 'llama3' not found")).toBe('coworkErrorModelNotFound');
 });
 
+test('model: Ollama rejects tool calls for a completion-only model', () => {
+  expect(classifyError('400 registry.ollama.ai/library/deepseek-r1:8b does not support tools'))
+    .toBe('coworkErrorToolCallingUnsupported');
+});
+
+test('model: generic provider schema rejection has a localized error', () => {
+  expect(classifyError('LLM request failed: provider rejected the request schema or tool payload.'))
+    .toBe('coworkErrorProviderRequestRejected');
+});
+
 // ==================== Gateway / connection ====================
 
 test('gateway: chat send payload too large', () => {

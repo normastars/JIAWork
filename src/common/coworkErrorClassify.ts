@@ -17,6 +17,8 @@ export const CoworkErrorI18nKey = {
   RateLimit: 'coworkErrorRateLimit',
   ModelOverloaded: 'coworkErrorModelOverloaded',
   ModelResponseTimeout: 'coworkErrorModelResponseTimeout',
+  ToolCallingUnsupported: 'coworkErrorToolCallingUnsupported',
+  ProviderRequestRejected: 'coworkErrorProviderRequestRejected',
   NetworkError: 'coworkErrorNetworkError',
   ServerError: 'coworkErrorServerError',
   TranscriptOversized: 'coworkErrorTranscriptOversized',
@@ -57,6 +59,9 @@ const ERROR_RULES: Array<[RegExp, string]> = [
   [/could not process pdf/i, 'coworkErrorCouldNotProcessPdf'],
   // Model not found: standard, Qwen, Ollama
   [/model.*not.*(found|exist)/i, 'coworkErrorModelNotFound'],
+  // A model may accept chat messages but reject the tools required by the agent runtime.
+  [/does not support tools|tool use is not supported/i, CoworkErrorI18nKey.ToolCallingUnsupported],
+  [/provider rejected the request schema or tool payload/i, CoworkErrorI18nKey.ProviderRequestRejected],
   // Gateway / connection issues
   [new RegExp(OpenClawTranscriptSafetyErrorCode.ActiveTranscriptOversized, 'i'), CoworkErrorI18nKey.TranscriptOversized],
   [new RegExp(`gatewayFailureKind=${OpenClawGatewayFailureKind.HeapOutOfMemory}|JavaScript heap out of memory`, 'i'), CoworkErrorI18nKey.GatewayHeapOutOfMemory],

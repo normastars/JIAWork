@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 
 import { SkinAssetSlot } from '../../../shared/skin/constants';
 import { useSkinAsset } from '../../providers/SkinProvider';
+import { i18nService } from '../../services/i18n';
 
 interface HomeSkinEmblemProps {
   className?: string;
@@ -18,8 +19,8 @@ const HomeSkinEmblem: React.FC<HomeSkinEmblemProps> = ({ className }) => {
 
   return (
     <img
-      src={shouldUseSkinAsset ? assetUrl ?? 'logo.png' : 'logo.png'}
-      alt="LobsterAI"
+      src={shouldUseSkinAsset ? assetUrl ?? 'gardy-mark.svg' : 'gardy-mark.svg'}
+      alt={i18nService.t('cowork')}
       draggable={false}
       onError={() => {
         if (assetUrl) setFailedUrl(assetUrl);

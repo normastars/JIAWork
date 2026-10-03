@@ -1,5 +1,6 @@
 import { ArrowPathIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import type { CoworkBrowserAnnotationMessageBatch } from '@shared/cowork/browserAnnotations';
+import type { EnterpriseWorkbenchConfig } from '@shared/enterprise/workbench';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
@@ -11,6 +12,12 @@ import startupCreditEntryGiftUrl from '../../assets/startup-credit-entry-gift.sv
 import { agentService } from '../../services/agent';
 import { coworkService } from '../../services/cowork';
 import { buildCoworkCapabilitySelection } from '../../services/coworkCapabilitySelection';
+import {
+  type LocalizedEnterpriseWorkbenchAction,
+  localizeEnterpriseWorkbench,
+  resolveEnterpriseTaskAgentId,
+  resolveEnterpriseTaskSkillIds,
+} from '../../services/enterpriseWorkbench';
 import { i18nService } from '../../services/i18n';
 import { quickActionService } from '../../services/quickAction';
 import { RootState } from '../../store';
@@ -53,6 +60,7 @@ import { useAgentSelectedModel } from './agentModelSelection';
 import { CoworkUiEvent } from './constants';
 import CoworkPromptInput, { type CoworkPromptInputRef } from './CoworkPromptInput';
 import CoworkSessionDetail from './CoworkSessionDetail';
+import EnterpriseWorkbenchTasks from './EnterpriseWorkbenchTasks';
 import { reportPromptTemplateAction } from './promptAnalytics';
 import { buildCoworkContinuationSystemPrompt, buildCoworkSystemPrompt } from './skillSystemPrompt';
 
@@ -72,9 +80,11 @@ const logCoworkViewModel = (message: string): void => {
 };
 
 export interface CoworkViewProps {
+  enterpriseWorkbench?: EnterpriseWorkbenchConfig;
   onRequestAppSettings?: (options?: SettingsOpenOptions) => void;
   onShowSkills?: () => void;
   onShowKits?: () => void;
+  showVoiceInput?: boolean;
   isSidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
   onNewChat?: () => void;
@@ -85,9 +95,11 @@ export interface CoworkViewProps {
 }
 
 const CoworkView: React.FC<CoworkViewProps> = ({
+  enterpriseWorkbench,
   onRequestAppSettings,
   onShowSkills,
   onShowKits,
+  showVoiceInput = true,
   isSidebarCollapsed,
   onToggleSidebar,
   onNewChat,
@@ -143,6 +155,11 @@ const CoworkView: React.FC<CoworkViewProps> = ({
   const shouldPresentConversation = Boolean(currentSession || sessionNavigationTargetId);
   const currentAgentWorkingDirectory = currentAgent?.workingDirectory?.trim() || config.workingDirectory || '';
   const currentAgentSelectedModel = useAgentSelectedModel(currentAgentId, currentAgent?.model ?? '');
+  const currentLanguage = i18nService.getLanguage();
+  const localizedEnterpriseWorkbench = React.useMemo(
+    () => localizeEnterpriseWorkbench(enterpriseWorkbench, currentLanguage),
+    [currentLanguage, enterpriseWorkbench],
+  );
   const homeDraftCollaborationMode = useSelector((state: RootState) => (
     state.cowork.draftCollaborationModes.__home__ || CoworkCollaborationMode.Default
   ));
@@ -651,6 +668,17 @@ const CoworkView: React.FC<CoworkViewProps> = ({
     promptInputRef.current?.focus();
   };
 
+  const handleEnterpriseTaskSelect = (action: LocalizedEnterpriseWorkbenchAction) => {
+    dispatch(clearSelection());
+    const targetAgentId = resolveEnterpriseTaskAgentId(action.agentId, agents);
+    if (targetAgentId && targetAgentId !== currentAgentId) {
+      agentService.switchAgent(targetAgentId);
+    }
+    dispatch(setActiveSkillIds(resolveEnterpriseTaskSkillIds(action.skillId, skills)));
+    promptInputRef.current?.setValue(action.prompt, 'template');
+    promptInputRef.current?.focus();
+  };
+
   useEffect(() => {
     const handleNewSession = () => {
       // Only clear when already on home (no session) — preserve __home__ draft when returning from a session
@@ -811,8 +839,9 @@ const CoworkView: React.FC<CoworkViewProps> = ({
         <div className="relative z-10 flex-1 flex flex-col h-full">
           {engineStatusBanner}
           <CoworkSessionDetail
-            onManageSkills={() => onShowSkills?.()}
-            onManageKits={() => onShowKits?.()}
+            onManageSkills={onShowSkills}
+            onManageKits={onShowKits}
+            showVoiceInput={showVoiceInput}
             onContinue={handleContinueSession}
             onStop={handleStopSession}
             isSidebarCollapsed={isSidebarCollapsed}
@@ -848,13 +877,13 @@ const CoworkView: React.FC<CoworkViewProps> = ({
                   className="mt-4 text-2xl font-semibold leading-[var(--lobster-leading-2xl)] tracking-normal text-foreground animate-fade-in-up"
                   style={{ animationDelay: '70ms', animationFillMode: 'both' }}
                 >
-                  {i18nService.t(resolveHomeGreetingKey())}
+                  {localizedEnterpriseWorkbench?.title || i18nService.t(resolveHomeGreetingKey())}
                 </h2>
                 <p
                   className="mt-2 text-[length:var(--lobster-text-promptLarge)] font-normal leading-[var(--lobster-leading-promptLarge)] text-secondary animate-fade-in-up"
                   style={{ animationDelay: '120ms', animationFillMode: 'both' }}
                 >
-                  {i18nService.t('coworkHomeTagline')}
+                  {localizedEnterpriseWorkbench?.tagline || i18nService.t('coworkHomeTagline')}
                 </p>
               </div>
 
@@ -878,8 +907,9 @@ const CoworkView: React.FC<CoworkViewProps> = ({
                   showFolderSelector={true}
                   showModelSelector={true}
                   showAgentSelector={true}
-                  onManageSkills={() => onShowSkills?.()}
-                  onManageKits={() => onShowKits?.()}
+                  onManageSkills={onShowSkills}
+                  onManageKits={onShowKits}
+                  showVoiceInput={showVoiceInput}
                   onGoalCommand={handleStartGoalSession}
                 />
               </div>
@@ -889,19 +919,28 @@ const CoworkView: React.FC<CoworkViewProps> = ({
                 className="relative z-0 mt-8 flex w-full max-w-3xl flex-col items-center animate-fade-in-up"
                 style={{ animationDelay: '260ms', animationFillMode: 'both' }}
               >
-                <QuickActionBar
-                  actions={quickActions}
-                  selectedActionId={selectedActionId}
-                  onActionSelect={handleActionSelect}
-                />
-                {selectedAction && (
-                  <div className="mt-4 w-full">
-                    <PromptPanel
-                      action={selectedAction}
-                      onPromptSelect={handleQuickActionPromptSelect}
-                      onClose={handleQuickActionDeselect}
+                {localizedEnterpriseWorkbench?.quickActions.length ? (
+                  <EnterpriseWorkbenchTasks
+                    actions={localizedEnterpriseWorkbench.quickActions}
+                    onSelect={handleEnterpriseTaskSelect}
+                  />
+                ) : (
+                  <>
+                    <QuickActionBar
+                      actions={quickActions}
+                      selectedActionId={selectedActionId}
+                      onActionSelect={handleActionSelect}
                     />
-                  </div>
+                    {selectedAction && (
+                      <div className="mt-4 w-full">
+                        <PromptPanel
+                          action={selectedAction}
+                          onPromptSelect={handleQuickActionPromptSelect}
+                          onClose={handleQuickActionDeselect}
+                        />
+                      </div>
+                    )}
+                  </>
                 )}
                 <CreditsResetCampaignFloat />
               </div>

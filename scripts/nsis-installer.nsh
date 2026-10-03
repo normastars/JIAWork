@@ -686,13 +686,13 @@ FunctionEnd
     ; silent mode. The window dies with the installer process, so no failure
     ; path can leave it behind.
     ;
-    ; The text is "Updating LobsterAI, please wait..." in Chinese, written as
+    ; The text is "Updating GARDY AI Workbench, please wait..." in Chinese, written as
     ; ${U+xxxx} escapes because this file must stay pure ASCII: the darwin
     ; makensis builds used for local syntax checks reject any non-ASCII byte
     ; (the escapes are fine on the Windows build machine -- the webPackage
     ; patch ships them in production already).
     ${If} ${Silent}
-      Banner::show /NOUNLOAD "${U+6B63}${U+5728}${U+66F4}${U+65B0} LobsterAI${U+FF0C}${U+8BF7}${U+7A0D}${U+5019}${U+2026}"
+      Banner::show /NOUNLOAD "${U+6B63}${U+5728}${U+66F4}${U+65B0}${U+5609}${U+8FEA} AI ${U+5DE5}${U+4F5C}${U+53F0}${U+FF0C}${U+8BF7}${U+7A0D}${U+5019}${U+2026}"
     ${EndIf}
   !endif
 

@@ -48,6 +48,7 @@ import type {
   DataMigrationLastRestoreResponse,
   DataMigrationRestoreScheduleResult,
 } from '../../shared/dataMigration/constants';
+import type { EnterpriseWorkbenchConfig } from '../../shared/enterprise/workbench';
 import type {
   HtmlShareAccessMode,
   HtmlShareConfigurableStatus,
@@ -1832,8 +1833,12 @@ interface IElectronAPI {
   };
   enterprise: {
     getConfig: () => Promise<{
+      language?: 'zh' | 'en';
       ui?: Record<string, 'hide' | 'disable' | 'readonly'>;
       disableUpdate?: boolean;
+      disableTelemetry?: boolean;
+      autoAcceptPrivacy?: boolean;
+      workbench?: EnterpriseWorkbenchConfig;
       version: string;
       name: string;
     } | null>;

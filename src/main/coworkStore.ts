@@ -32,6 +32,7 @@ import type {
   KitReference,
   ResolvedKitCapabilities,
 } from '../shared/kit/constants';
+import { APP_NAME } from './appConstants';
 import {
   ContinuityCapsuleSource,
   type CoworkContinuityCapsule,
@@ -1815,7 +1816,7 @@ export class CoworkStore {
       timestamp: row.created_at,
       preview: getCoworkRailPreview(
         row.preview_content,
-        row.type === 'user' ? `Turn ${index + 1}` : 'LobsterAI',
+        row.type === 'user' ? `Turn ${index + 1}` : APP_NAME,
         COWORK_RAIL_TOOLTIP_PREVIEW_MAX_LENGTH,
       ),
       contentLen: row.content_len,
