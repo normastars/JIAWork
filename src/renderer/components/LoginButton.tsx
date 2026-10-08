@@ -585,6 +585,10 @@ const LoginButton: React.FC<LoginButtonProps> = ({ contentLeftOffset = 0 }) => {
     }
   };
 
+  // OEM: login disabled — hide the login/user button entirely
+  return null;
+
+  // eslint-disable-next-line no-unreachable
   return (
     <div ref={containerRef} className="relative">
       <button
@@ -595,7 +599,7 @@ const LoginButton: React.FC<LoginButtonProps> = ({ contentLeftOffset = 0 }) => {
         {isLoggedIn ? (
           <>
             {user?.avatarUrl ? (
-              <img src={user.avatarUrl} alt="" className="h-4 w-4 shrink-0 rounded-full" />
+              <img src={user?.avatarUrl ?? undefined} alt="" className="h-4 w-4 shrink-0 rounded-full" />
             ) : (
               <UserAvatarIcon className="h-4 w-4 shrink-0" />
             )}

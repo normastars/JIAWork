@@ -38,6 +38,9 @@ export const getLoginOvermindUrl = () => isTestModeEnabled()
   ? 'https://api-overmind.youdao.com/openapi/get/luna/hardware/lobsterai/test/login-url'
   : 'https://api-overmind.youdao.com/openapi/get/luna/hardware/lobsterai/prod/login-url';
 
+// OEM: DeepSeek platform for API key acquisition
+export const DEEPSEEK_PLATFORM_URL = 'https://platform.deepseek.com';
+
 // Portal 页面
 const PORTAL_BASE_TEST = 'https://lobsterai.inner.youdao.com/portal#';
 const PORTAL_BASE_PROD = 'https://lobsterai.youdao.com/portal#';

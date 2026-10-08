@@ -111,8 +111,8 @@ export const ModelAccessPromptModal: React.FC<ModelAccessPromptModalProps> = ({
 
   const openSubscriptionPage = async () => {
     onClose();
-    const { getPortalPricingUrl } = await import('../services/endpoints');
-    await window.electron.shell.openExternal(getPortalPricingUrl());
+    const { DEEPSEEK_PLATFORM_URL } = await import('../services/endpoints');
+    await window.electron.shell.openExternal(DEEPSEEK_PLATFORM_URL);
   };
 
   const handlePrimary = async () => {

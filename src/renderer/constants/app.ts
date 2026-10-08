@@ -1,4 +1,4 @@
-export const APP_NAME = 'LobsterAI';
-export const APP_ID = 'lobsterai';
-export const EXPORT_FORMAT_TYPE = 'lobsterai.providers';
-export const EXPORT_PASSWORD = 'lobsterai-APP';
+export const APP_NAME = 'JiaDi';
+export const APP_ID = 'jiadi';
+export const EXPORT_FORMAT_TYPE = 'jiadi.providers';
+export const EXPORT_PASSWORD = 'jiadi-APP';

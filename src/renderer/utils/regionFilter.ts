@@ -1,11 +1,10 @@
 import { PlatformRegistry } from '@shared/platform';
+import type { Platform } from '@shared/platform';
 
-/**
- * 根据语言获取可见的 IM 平台
- */
-export const getVisibleIMPlatforms = (language: 'zh' | 'en'): readonly string[] => {
-  if (language === 'zh') {
-    return PlatformRegistry.platformsByRegion('china');
-  }
-  return PlatformRegistry.platforms;
+const OEM_ALLOWED_PLATFORMS: readonly Platform[] = ['weixin', 'wecom', 'dingtalk', 'feishu', 'qq', 'email'];
+
+export const getVisibleIMPlatforms = (_language: 'zh' | 'en'): readonly string[] => {
+  return PlatformRegistry.platforms.filter((p) =>
+    OEM_ALLOWED_PLATFORMS.includes(p as Platform)
+  );
 };

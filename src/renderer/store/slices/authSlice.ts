@@ -96,9 +96,9 @@ interface AuthState {
 }
 
 const initialState: AuthState = {
-  isLoggedIn: false,
-  isLoading: true,
-  sessionStatus: AuthSessionStatus.Unauthenticated,
+  isLoggedIn: true,
+  isLoading: false,
+  sessionStatus: AuthSessionStatus.Authenticated,
   user: null,
   quota: null,
   profileSummary: null,
@@ -119,36 +119,25 @@ const authSlice = createSlice({
       state.quota = action.payload.quota;
     },
     setLoggedOut(state) {
-      state.isLoggedIn = false;
+      // OEM: login disabled — keep isLoggedIn true permanently
       state.isLoading = false;
-      state.sessionStatus = AuthSessionStatus.Unauthenticated;
-      state.user = null;
-      state.quota = null;
-      state.profileSummary = null;
+      state.sessionStatus = AuthSessionStatus.Authenticated;
     },
     setAuthExpired(state) {
-      state.isLoggedIn = false;
+      // OEM: login disabled — keep isLoggedIn true permanently
       state.isLoading = false;
-      state.sessionStatus = AuthSessionStatus.Expired;
-      state.user = null;
-      state.quota = null;
-      state.profileSummary = null;
+      state.sessionStatus = AuthSessionStatus.Authenticated;
     },
     setAuthTemporarilyUnavailable(
       state,
-      action: PayloadAction<{
+      _action: PayloadAction<{
         hasCredentials: boolean;
         cachedUser?: UserProfile | null;
       }>,
     ) {
+      // OEM: login disabled — keep isLoggedIn true permanently
       state.isLoading = false;
-      state.sessionStatus = AuthSessionStatus.TemporarilyUnavailable;
-      if (action.payload.hasCredentials) {
-        state.isLoggedIn = true;
-      }
-      if (action.payload.cachedUser) {
-        state.user = action.payload.cachedUser;
-      }
+      state.sessionStatus = AuthSessionStatus.Authenticated;
     },
     updateQuota(state, action: PayloadAction<UserQuota>) {
       state.quota = action.payload;

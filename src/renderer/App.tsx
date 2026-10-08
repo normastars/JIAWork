@@ -1349,7 +1349,8 @@ const App: React.FC = () => {
     );
   }
 
-  if (privacyAgreed === false) {
+  // OEM: login gate disabled — enter main app directly without login
+  if (false && privacyAgreed === false) {
     // First-launch gate: render only the welcome screen — no app chrome (title
     // bar/sidebar) until the agreement is accepted. An invisible drag strip
     // keeps the frameless window movable; Windows caption buttons stay on top.
@@ -1357,7 +1358,7 @@ const App: React.FC = () => {
       <div className="relative h-screen overflow-hidden">
         {toastMessage && (
           <Toast
-            message={toastMessage}
+            message={toastMessage as string}
             closeLabel={i18nService.t('close')}
             onClose={() => setToastMessage(null)}
           />
