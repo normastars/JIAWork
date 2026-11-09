@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "name": "嘉迪查数演示模型",
+  "dimensions": {
+    "customer": { "label": "客户", "aliases": ["客户名称"] },
+    "supplier": { "label": "供应商", "aliases": ["供应商名称"] },
+    "part_no": { "label": "零件号", "aliases": ["物料号", "产品编号"] },
+    "warehouse": { "label": "仓库", "aliases": ["仓库名称"] }
+  },
+  "tables": {
+    "sales_orders": {
+      "name": "dbo.SalesOrderLine",
+      "dateColumn": "order_date",
+      "dimensions": { "customer": "customer_name", "part_no": "part_no" }
+    },
+    "purchase_orders": {
+      "name": "dbo.PurchaseOrderLine",
+      "dateColumn": "order_date",
+      "dimensions": { "supplier": "supplier_name", "part_no": "part_no" }
+    },
+    "inventory": {
+      "name": "dbo.InventorySnapshot",
+      "dateColumn": "snapshot_date",
+      "dimensions": { "warehouse": "warehouse_name", "part_no": "part_no" }
+    }
+  },
+  "relations": {},
+  "metrics": {
+    "sales_order_quantity": {
+      "label": "销售订单数量",
+      "table": "sales_orders",
+      "column": "quantity",
+      "type": "flow",
+      "unit": "件",
+      "notes": ["按销售订单日期统计订单行数量；取消订单不计入演示数据。"]
+    },
+    "purchase_order_quantity": {
+      "label": "采购订单数量",
+      "table": "purchase_orders",
+      "column": "ordered_quantity",
+      "type": "flow",
+      "unit": "件",
+      "notes": ["按采购订单日期统计订单行的下单数量。"]
+    },
+    "purchase_open_quantity": {
+      "label": "采购未收数量",
+      "table": "purchase_orders",
+      "column": "ordered_quantity",
+      "subtractColumn": "received_quantity",
+      "type": "flow",
+      "unit": "件",
+      "notes": ["采购未收数量＝下单数量－已收数量，按订单日期筛选；不是某日的历史未收快照。"]
+    },
+    "inventory_quantity": {
+      "label": "库存数量",
+      "table": "inventory",
+      "column": "quantity",
+      "type": "snapshot",
+      "unit": "件",
+      "notes": ["取指定期间结束前最近一次库存快照；不能跨快照日期相加。"]
+    }
+  }
+}

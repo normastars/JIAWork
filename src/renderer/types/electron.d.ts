@@ -66,6 +66,7 @@ import type {
   ListLocalWebServicesOptions,
   LocalWebService,
 } from '../../shared/localWebServices/constants';
+import type { NlqDatabaseTable, NlqModel, NlqModelState, NlqQueryResult, NlqQuerySpec } from '../../shared/nlq/constants';
 import type {
   OpenClawEngineErrorCode,
   OpenClawEnginePhase as SharedOpenClawEnginePhase,
@@ -570,6 +571,14 @@ interface HtmlShareResult {
 }
 
 interface IElectronAPI {
+  nlq: {
+    status: () => Promise<{ connected: boolean; database: string; message: string }>;
+    schema: () => Promise<NlqDatabaseTable[]>;
+    model: () => Promise<NlqModelState>;
+    saveDraft: (model: NlqModel) => Promise<NlqModel>;
+    preview: (spec: NlqQuerySpec) => Promise<NlqQueryResult>;
+    publish: () => Promise<NlqModel>;
+  };
   platform: string;
   arch: string;
   store: {

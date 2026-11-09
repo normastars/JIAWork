@@ -1583,6 +1583,13 @@ function classifyOpenClawSafeRuntimeErrorMetadata(
     return CoworkErrorI18nKey.ModelAccessDenied;
   }
 
+  if (
+    /\b403\b/.test(metadata.rawErrorPreview ?? '')
+    && /no access to model/i.test(metadata.rawErrorPreview ?? '')
+  ) {
+    return CoworkErrorI18nKey.ModelAccessDenied;
+  }
+
   // Some providers return an HTTP 200 SSE response whose terminal error text
   // contains an inner 503 capacity failure. OpenClaw can classify that text as
   // rate_limit because it also says "too many requests" or "throttled". Let
