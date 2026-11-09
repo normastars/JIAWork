@@ -199,6 +199,7 @@ import { registerCoworkSubagentHandlers } from './ipcHandlers/coworkSubagent';
 import { registerKitHandlers } from './ipcHandlers/kits';
 import { registerMcpHandlers } from './ipcHandlers/mcp';
 import { registerNimQrLoginHandlers } from './ipcHandlers/nimQrLogin';
+import { registerNlqIpcHandlers } from './ipcHandlers/nlq';
 import { registerPermissionIpcHandlers } from './ipcHandlers/permissions/handlers';
 import { registerPluginHandlers } from './ipcHandlers/plugins';
 import {
@@ -421,6 +422,9 @@ import {
   MediaGenerationRequestType,
   summarizeMediaGenerationParamsForLog,
 } from './mediaGenerationReferences';
+import { loadNlqConnectionConfig } from './nlq/connectionConfig';
+import { getNlqMcpServerConfig, startNlqMcpServer } from './nlq/mcpServer';
+import { initializeNlqModel } from './nlq/modelStore';
 import { OpenClawSessionIpc } from './openclawSession/constants';
 import { OpenClawSessionPolicyIpc } from './openclawSessionPolicy/constants';
 import {
@@ -2258,7 +2262,11 @@ const getOpenClawConfigSync = (): OpenClawConfigSync => {
       getResolvedMcpServers: () => {
         // Synchronous wrapper: returns last resolved servers from cache.
         // The async resolution happens during syncOpenClawConfig via McpRuntime.
-        return getMcpRuntime().getResolvedServersCache();
+        const nlqServer = getNlqMcpServerConfig();
+        return [
+          ...getMcpRuntime().getResolvedServersCache(),
+          ...(nlqServer ? [nlqServer] : []),
+        ];
       },
       getAskUserCallbackUrl: () => getMcpRuntime().getAskUserCallbackUrl(),
       getMediaCallbackUrl: () => getMcpRuntime().getMediaCallbackUrl(),
@@ -7273,6 +7281,7 @@ if (!gotTheLock) {
   });
 
   registerMcpHandlers({ getMcpRuntime, syncOpenClawConfig });
+  registerNlqIpcHandlers(ipcMain);
 
   // Cowork IPC handlers
   ipcMain.handle(
@@ -12294,6 +12303,14 @@ if (!gotTheLock) {
       }
     }
     profiler.measure('enterpriseConfigSync');
+
+    loadNlqConnectionConfig();
+    initializeNlqModel(app.getPath('userData'));
+    try {
+      await startNlqMcpServer();
+    } catch (error) {
+      console.error('[NLQ] MCP server startup failed:', error);
+    }
 
     bindCoworkRuntimeForwarder();
     bindOpenClawStatusForwarder();
