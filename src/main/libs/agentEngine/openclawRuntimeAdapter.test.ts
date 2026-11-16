@@ -656,6 +656,15 @@ test('resolveOpenClawRuntimeErrorMessage keeps LobsterAI HTTP 403 as model acces
   })).toContain('无权访问该模型');
 });
 
+test('resolveOpenClawRuntimeErrorMessage identifies platform key model restrictions', () => {
+  expect(resolveOpenClawRuntimeErrorMessage('LLM request failed.', {
+    provider: 'openai',
+    model: 'gpt-5-mini',
+    failoverReason: 'auth',
+    rawErrorPreview: '403 This token has no access to model gpt-5-mini',
+  })).toContain('无权访问该模型');
+});
+
 test('resolveOpenClawRuntimeErrorMessage classifies generic error from safe model access metadata', () => {
   expect(resolveOpenClawRuntimeErrorMessage('LLM request failed.', {
     provider: 'minimax',

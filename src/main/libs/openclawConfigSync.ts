@@ -1959,7 +1959,7 @@ loopDetection: MANAGED_TOOL_LOOP_DETECTION,
         // Still sync AGENTS.md even when API is not configured — skills/systemPrompt
         // may already be set and should be available when the user configures a model.
         const mainWorkspacePath = getMainAgentWorkspacePath(this.engineManager.getStateDir());
-        const agentsMdWarning = this.syncAgentsMd(mainWorkspacePath, coworkConfig);
+        const agentsMdWarning = this.syncAgentsMd(mainWorkspacePath, coworkConfig, true);
         this.syncPerAgentWorkspaces(mainWorkspacePath, coworkConfig);
         if (agentsMdWarning) result.agentsMdWarning = agentsMdWarning;
         return result;
@@ -3159,7 +3159,7 @@ loopDetection: MANAGED_TOOL_LOOP_DETECTION,
     // Sync AGENTS.md with skills routing prompt to the OpenClaw workspace directory.
     // This runs on every sync regardless of openclaw.json changes, because skills
     // may have been installed/enabled/disabled independently.
-    const agentsMdWarning = this.syncAgentsMd(mainWorkspacePath, coworkConfig);
+    const agentsMdWarning = this.syncAgentsMd(mainWorkspacePath, coworkConfig, true);
 
     // Sync per-agent workspace files (SOUL.md, IDENTITY.md, AGENTS.md) for non-main agents
     this.syncPerAgentWorkspaces(mainWorkspacePath, coworkConfig);
@@ -3591,7 +3591,7 @@ loopDetection: MANAGED_TOOL_LOOP_DETECTION,
    * native channel connectors (DingTalk, Feishu, etc.) can discover and
    * invoke LobsterAI skills.
    */
-  private syncAgentsMd(workspaceDir: string, coworkConfig: CoworkConfig): string | undefined {
+  private syncAgentsMd(workspaceDir: string, coworkConfig: CoworkConfig, isMainAgent = false): string | undefined {
     const MARKER = '<!-- LobsterAI managed: do not edit below this line -->';
 
     try {
@@ -3608,6 +3608,11 @@ loopDetection: MANAGED_TOOL_LOOP_DETECTION,
       }
 
       sections.push(MANAGED_CHINESE_OUTPUT_PROMPT);
+      if (isMainAgent) {
+        sections.push(`## 嘉迪业务查数
+
+用户询问数据库业务指标的数量、分组、同比或环比时，使用 jiawork-nlq MCP 工具查询。先调用 get_catalog，按当前已发布目录选择指标和维度；如提到具体成员名称，先调用 find_members 核实，再调用 query_metric。月份使用 YYYY-MM。回答只能引用工具返回的数字，说明期间和口径。工具报错或无数据时如实告知，不要搜索工作目录代替数据库，也不要编造数字。`);
+      }
 
       // Skills are now loaded by OpenClaw natively via skills.load.extraDirs
       // in openclaw.json, so we no longer embed the skills routing prompt here.

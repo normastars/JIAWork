@@ -55,6 +55,7 @@ import {
   LocalWebServicesIpc,
 } from '../shared/localWebServices/constants';
 import { McpIpcChannel } from '../shared/mcp/constants';
+import { NlqIpcChannel, type NlqQuerySpec } from '../shared/nlq/constants';
 import { OpenClawEngineIpc } from '../shared/openclawEngine/constants';
 import { PermissionIpcChannel } from '../shared/permissions/constants';
 import type { Platform } from '../shared/platform';
@@ -95,6 +96,14 @@ import { OpenClawSessionPolicyIpc } from './openclawSessionPolicy/constants';
 contextBridge.exposeInMainWorld('electron', {
   platform: process.platform,
   arch: process.arch,
+  nlq: {
+    status: () => ipcRenderer.invoke(NlqIpcChannel.Status),
+    schema: () => ipcRenderer.invoke(NlqIpcChannel.Schema),
+    model: () => ipcRenderer.invoke(NlqIpcChannel.Model),
+    saveDraft: (model: unknown) => ipcRenderer.invoke(NlqIpcChannel.SaveDraft, model),
+    preview: (spec: NlqQuerySpec) => ipcRenderer.invoke(NlqIpcChannel.Preview, spec),
+    publish: () => ipcRenderer.invoke(NlqIpcChannel.Publish),
+  },
   store: {
     get: (key: string) => ipcRenderer.invoke('store:get', key),
     set: (key: string, value: any) => ipcRenderer.invoke('store:set', key, value),

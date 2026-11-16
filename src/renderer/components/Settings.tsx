@@ -1,4 +1,4 @@
-import { ArchiveBoxIcon, ArrowPathIcon, ArrowPathRoundedSquareIcon, ChatBubbleLeftIcon, CheckCircleIcon, CpuChipIcon, CubeIcon, EnvelopeIcon, ExclamationTriangleIcon, GlobeAltIcon, InformationCircleIcon, MagnifyingGlassIcon, SignalIcon, SunIcon, TrashIcon, WrenchScrewdriverIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { ArchiveBoxIcon, ArrowPathIcon, ArrowPathRoundedSquareIcon, ArrowsPointingInIcon, ArrowsPointingOutIcon, ChatBubbleLeftIcon, CheckCircleIcon, CpuChipIcon, CubeIcon, EnvelopeIcon, ExclamationTriangleIcon, GlobeAltIcon, InformationCircleIcon, MagnifyingGlassIcon, SignalIcon, SunIcon, TrashIcon, WrenchScrewdriverIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import React, { useCallback,useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
@@ -68,6 +68,7 @@ import PlugIcon from './icons/PlugIcon';
 import PlusCircleIcon from './icons/PlusCircleIcon';
 import SkillIcon from './icons/SkillIcon';
 import IMSettings from './im/IMSettings';
+import { NlqModelManager } from './nlq/NlqModelManager';
 import PluginsSettings, { type PluginPendingChanges, type PluginsSettingsHandle } from './plugins/PluginsSettings';
 import BrowserWebAccessSettings from './settings/BrowserWebAccessSettings';
 import GardyModelConfig from './settings/GardyModelConfig';
@@ -102,7 +103,7 @@ import SkinPresentationScope from './skin/SkinPresentationScope';
 import SkinSettingsSection from './skin/SkinSettingsSection';
 import ThemedSelect from './ui/ThemedSelect';
 
-type TabType = 'general' | 'appearance' | 'coworkAgentEngine' | 'model' | 'browserWebAccess' | 'coworkMemory' | 'coworkDreaming' | 'shortcuts' | 'im' | 'email' | 'plugins' | 'about' | 'skills';
+type TabType = 'general' | 'appearance' | 'coworkAgentEngine' | 'model' | 'dataModel' | 'browserWebAccess' | 'coworkMemory' | 'coworkDreaming' | 'shortcuts' | 'im' | 'email' | 'plugins' | 'about' | 'skills';
 
 const waitForNextPaint = (): Promise<void> => new Promise(resolve => {
   window.requestAnimationFrame(() => {
@@ -1396,6 +1397,7 @@ const Settings: React.FC<SettingsProps> = ({
   const [activeTab, setActiveTab] = useState<TabType>(
     initialTab && enterpriseConfig?.ui?.[`settings.${initialTab}`] !== 'hide' ? initialTab : 'general',
   );
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
   const [themeId, setThemeId] = useState<string>(themeService.getDefaultThemeId());
   const [uiFontSize, setUiFontSize] = useState<number>(FontPreferences.UiFontSizeDefault);
@@ -4544,6 +4546,7 @@ const Settings: React.FC<SettingsProps> = ({
       { key: 'appearance' as TabType,     label: i18nService.t('appearance'),     icon: <SunIcon className="h-5 w-5" /> },
       { key: 'coworkAgentEngine' as TabType, label: i18nService.t('coworkAgentEngine'), icon: <CpuChipIcon className="h-5 w-5" /> },
       { key: 'model' as TabType,          label: i18nService.t(isEnterpriseDistribution ? 'settingsApiConfig' : 'settingsCustomModel'), icon: <CubeIcon className="h-5 w-5" /> },
+      { key: 'dataModel' as TabType,      label: i18nService.t('settingsDataModel'), icon: <ArchiveBoxIcon className="h-5 w-5" /> },
       { key: 'skills' as TabType,         label: i18nService.t('settingsSkillManagement'), icon: <SkillIcon className="h-5 w-5" /> },
       { key: 'im' as TabType,             label: i18nService.t('imBot'),          icon: <ChatBubbleLeftIcon className="h-5 w-5" /> },
       { key: 'browserWebAccess' as TabType, label: i18nService.t('browserWebAccessTab'), icon: <GlobeAltIcon className="h-5 w-5" /> },
@@ -4556,7 +4559,7 @@ const Settings: React.FC<SettingsProps> = ({
     ];
     const ui = enterpriseConfig?.ui;
     return allTabs.filter(tab => (
-      (isEnterpriseDistribution || tab.key !== 'skills')
+      (isEnterpriseDistribution || (tab.key !== 'skills' && tab.key !== 'dataModel'))
       && ui?.[`settings.${tab.key}`] !== 'hide'
     ));
   })();
@@ -5977,13 +5980,15 @@ const Settings: React.FC<SettingsProps> = ({
   return (
     <Modal
       onClose={guardedClose}
-      overlayClassName="fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-3 sm:p-4"
-      className="w-[calc(100vw-1.5rem)] max-w-[900px] min-w-0 sm:w-[calc(100vw-2rem)]"
+      overlayClassName={`fixed inset-0 z-50 modal-backdrop flex items-center justify-center ${isFullscreen ? 'p-2' : 'p-3 sm:p-4'}`}
+      className={isFullscreen
+        ? 'w-[calc(100vw-1rem)] min-w-0'
+        : 'w-[calc(100vw-1.5rem)] max-w-[900px] min-w-0 sm:w-[calc(100vw-2rem)]'}
     >
       <SkinPresentationScope
         enabled
         data-skin-settings="true"
-        className="relative flex h-[80vh] max-h-[calc(100vh-2rem)] w-full min-w-0 rounded-2xl border-border border shadow-modal overflow-hidden modal-content"
+        className={`relative flex w-full min-w-0 rounded-2xl border-border border shadow-modal overflow-hidden modal-content ${isFullscreen ? 'h-[calc(100vh-1rem)]' : 'h-[80vh] max-h-[calc(100vh-2rem)]'}`}
         onClick={handleSettingsClick}
       >
         {/* Left sidebar */}
@@ -6014,12 +6019,25 @@ const Settings: React.FC<SettingsProps> = ({
           {/* Content header */}
           <div className="flex justify-between items-center gap-3 px-6 pt-5 pb-3 shrink-0">
             <h3 className="min-w-0 truncate text-lg font-semibold text-foreground">{activeTabLabel}</h3>
-            <button
-              onClick={guardedClose}
-              className="text-secondary hover:text-foreground p-1.5 hover:bg-surface-raised rounded-lg transition-colors"
-            >
-              <XMarkIcon className="h-5 w-5" />
-            </button>
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setIsFullscreen(value => !value)}
+                aria-label={i18nService.t(isFullscreen ? 'settingsRestoreWindow' : 'settingsExpandWindow')}
+                title={i18nService.t(isFullscreen ? 'settingsRestoreWindow' : 'settingsExpandWindow')}
+                className="rounded-lg p-1.5 text-secondary transition-colors hover:bg-surface-raised hover:text-foreground"
+              >
+                {isFullscreen ? <ArrowsPointingInIcon className="h-5 w-5" /> : <ArrowsPointingOutIcon className="h-5 w-5" />}
+              </button>
+              <button
+                type="button"
+                onClick={guardedClose}
+                aria-label={i18nService.t('close')}
+                className="rounded-lg p-1.5 text-secondary transition-colors hover:bg-surface-raised hover:text-foreground"
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
           {noticeMessage && (
@@ -6040,9 +6058,9 @@ const Settings: React.FC<SettingsProps> = ({
             </div>
           )}
 
-          {activeTab === 'skills' ? (
+          {activeTab === 'skills' || activeTab === 'dataModel' ? (
             <div className="flex-1 overflow-y-auto px-6 py-4" style={{ scrollbarGutter: 'stable' }}>
-              <SkillsManager />
+              {activeTab === 'skills' ? <SkillsManager /> : <NlqModelManager />}
             </div>
           ) : (
           <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">

@@ -299,7 +299,7 @@ const App: React.FC = () => {
         }
 
         let config = configService.getConfig();
-        if (entConfig?.ui?.login === 'hide') {
+        if (resolvedEnterpriseConfig.ui?.login === 'hide') {
           try {
             const reconciled = await waitWithTimeout(
               reconcileEnterpriseModels(config),
