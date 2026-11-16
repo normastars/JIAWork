@@ -1,7 +1,7 @@
 {
-  "appId": "com.lobsterai.app",
-  "productName": "嘉迪 AI 工作台",
-  "executableName": "LobsterAI",
+  "appId": "com.gardyai.app",
+  "productName": "嘉迪AI",
+  "executableName": "GardyAI",
   "directories": {
     "output": "release"
   },
@@ -66,8 +66,8 @@
   ],
   "protocols": [
     {
-      "name": "嘉迪 AI 工作台",
-      "schemes": ["lobsterai"]
+      "name": "GardyAI",
+      "schemes": ["gardyai"]
     }
   ],
   "mac": {
@@ -82,10 +82,10 @@
     "entitlementsInherit": "build/entitlements.mac.plist",
     "extendInfo": {
       "CFBundleIconName": "icon",
-      "NSMicrophoneUsageDescription": "嘉迪 AI 工作台需要访问麦克风，以录制语音输入并进行语音识别。",
-      "NSCalendarsUsageDescription": "嘉迪 AI 工作台需要访问日历，以查看日程和创建会议。",
-      "NSRemindersUsageDescription": "嘉迪 AI 工作台需要访问提醒事项，以管理待办事项。",
-      "NSAppleEventsUsageDescription": "嘉迪 AI 工作台需要使用 Apple Events 控制日历应用，以执行日程自动化操作。"
+      "NSMicrophoneUsageDescription": "嘉迪AI需要访问麦克风，以录制语音输入并进行语音识别。",
+      "NSCalendarsUsageDescription": "嘉迪AI需要访问日历，以查看日程和创建会议。",
+      "NSRemindersUsageDescription": "嘉迪AI需要访问提醒事项，以管理待办事项。",
+      "NSAppleEventsUsageDescription": "嘉迪AI需要使用 Apple Events 控制日历应用，以执行日程自动化操作。"
     },
     "extraResources": [
       {
@@ -245,7 +245,7 @@
       }
     ],
     "desktop": {
-      "Name": "嘉迪 AI 工作台",
+      "Name": "嘉迪AI",
       "Comment": "智能办公与文档处理工作台",
       "Terminal": "false"
     }

@@ -425,7 +425,7 @@ const ArtifactPreviewCard: React.FC<ArtifactPreviewCardProps> = ({
     (artifact.type === ArtifactTypeValue.Html && artifact.filePath) ||
     (artifact.type === ArtifactTypeValue.LocalService && localServiceUrl)
   )
-    ? { label: t('artifactPreviewCardLobsterBrowser'), onOpen: handleClick }
+    ? { label: t('artifactPreviewCardGardyBrowser'), onOpen: handleClick }
     : undefined;
   const subtitle = (
     <>

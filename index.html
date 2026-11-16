@@ -193,10 +193,10 @@
     </style>
     <script>
       // 在页面加载前预设主题，避免闪烁。
-      // 'lobster-theme-appearance' 由 theme-manager.ts 在每次应用主题时写入。
+      // 'gardyai-theme-appearance' 由 theme-manager.ts 在每次应用主题时写入。
       (function () {
         try {
-          var appearance = localStorage.getItem('lobster-theme-appearance');
+          var appearance = localStorage.getItem('gardyai-theme-appearance');
           if (appearance !== 'dark' && appearance !== 'light') {
             appearance = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
           }
@@ -215,7 +215,7 @@
         <div class="splash-content">
           <div class="splash-logo-wrap">
             <div class="splash-logo-glow"></div>
-            <img class="splash-logo" src="gardy-mark.svg" alt="嘉迪 AI 工作台" width="72" height="72" draggable="false" />
+            <img class="splash-logo" src="gardy-mark.svg" alt="嘉迪AI" width="72" height="72" draggable="false" />
           </div>
           <h1 class="splash-title" id="splash-title">AI 引擎启动中</h1>
           <p class="splash-subtitle" id="splash-subtitle">加载中...</p>
@@ -240,7 +240,7 @@
       (function () {
         try {
           var lang = 'zh';
-          localStorage.setItem('lobster-language', lang);
+          localStorage.setItem('gardyai-language', lang);
           var texts = {
             zh: {
               title: 'AI 引擎启动中',
@@ -285,7 +285,7 @@
               dotButtons[j].className = j === idx ? 'splash-dot splash-dot-active' : 'splash-dot';
             }
             try {
-              sessionStorage.setItem('lobster-splash-tip-index', String(idx));
+              sessionStorage.setItem('gardyai-splash-tip-index', String(idx));
             } catch (e) {
               /* storage unavailable */
             }

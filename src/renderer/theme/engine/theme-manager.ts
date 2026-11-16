@@ -1,7 +1,7 @@
 import type { ThemeDefinition } from '../themes/types';
 
 /** localStorage key read by index.html's pre-React splash to pick light/dark before any JS bundle loads */
-export const THEME_APPEARANCE_STORAGE_KEY = 'lobster-theme-appearance';
+export const THEME_APPEARANCE_STORAGE_KEY = 'gardyai-theme-appearance';
 
 export interface ThemeStorage {
   get(key: string): string | null | Promise<string | null>;

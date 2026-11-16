@@ -165,7 +165,7 @@ export function getPreviewCardDescriptor(artifact: Artifact): PreviewCardDescrip
     : formatSubtitle(getKindKey(displayKind), extension);
   const defaultOpenAction = isWebsite ? PreviewCardOpenAction.Browser : PreviewCardOpenAction.Preview;
   const hoverSubtitle = defaultOpenAction === PreviewCardOpenAction.Browser
-    ? t('artifactPreviewCardOpenInLobsterBrowser')
+    ? t('artifactPreviewCardOpenInGardyBrowser')
     : t('artifactPreviewCardOpenPreview');
 
   return {

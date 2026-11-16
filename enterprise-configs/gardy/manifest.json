@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "name": "嘉迪 AI 工作台",
+  "name": "嘉迪AI",
   "language": "zh",
   "ui": {
     "login": "hide",
@@ -28,8 +28,8 @@
   },
   "workbench": {
     "title": {
-      "zh": "嘉迪 AI 工作台",
-      "en": "GARDY AI Workbench"
+      "zh": "嘉迪AI",
+      "en": "GardyAI"
     },
     "tagline": {
       "zh": "处理表格、文档与工作汇报，从一个任务开始",

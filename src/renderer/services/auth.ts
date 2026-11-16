@@ -466,7 +466,7 @@ class AuthService {
     writeAuthRendererLog('warn', `login session expired (${event.reason})`);
     const cleanup = this.applyLoggedOutState(true);
     window.dispatchEvent(new CustomEvent('app:showToast', {
-      detail: i18nService.t('coworkErrorLobsterAILoginExpired'),
+      detail: i18nService.t('coworkErrorGardyAILoginExpired'),
     }));
     await cleanup;
   }

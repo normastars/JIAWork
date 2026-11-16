@@ -19,7 +19,7 @@ const SLOW_HINT_AFTER_MS = 15000;
 
 // sessionStorage key written by index.html's static splash so the overlay
 // continues from the same tip instead of jumping to a different one.
-const SPLASH_TIP_INDEX_STORAGE_KEY = 'lobster-splash-tip-index';
+const SPLASH_TIP_INDEX_STORAGE_KEY = 'gardyai-splash-tip-index';
 
 const readInitialTipIndex = (): number => {
   try {

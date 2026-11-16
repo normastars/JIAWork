@@ -2,7 +2,7 @@ import React from 'react';
 
 import { i18nService } from '@/services/i18n';
 
-const SERVICE_TERMS_URL = 'https://c.youdao.com/dict/hardware/lobsterai/lobsterai_service.html';
+const SERVICE_TERMS_URL = '#';
 
 // Ripple rings radiating from the logo: diameter and opacity per ring.
 const LOGO_RINGS: Array<{ size: number; opacity: number }> = [
