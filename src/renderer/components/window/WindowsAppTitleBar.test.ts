@@ -25,6 +25,7 @@ const renderTitleBar = (
   });
 
   return renderToStaticMarkup(React.createElement(WindowsAppTitleBar, {
+    title: '嘉迪 AI 工作台',
     onToggleSidebar: () => undefined,
     searchLabel: 'Search tasks',
     ...props,
@@ -42,6 +43,10 @@ describe('WindowsAppTitleBar', () => {
     expect(html).toContain('class="h-4 w-4 max-w-none shrink-0"');
     expect(html).toContain('class="hidden text-sm font-medium text-foreground"');
     expect(html).not.toContain('style="width:220px"');
+  });
+
+  test('renders the configured product title', () => {
+    expect(renderTitleBar('win32')).toContain('嘉迪 AI 工作台');
   });
 
   test.each([

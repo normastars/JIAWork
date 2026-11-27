@@ -1,1144 +1,87 @@
-import { ArrowPathIcon, ChevronRightIcon, GiftIcon, QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { ArrowPathIcon } from '@heroicons/react/24/outline';
+import React, { useEffect, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
 
 import { FeedbackUiEvent } from '../../shared/feedback/constants';
-import type { SubscriptionTrialState } from '../../shared/subscriptionTrial/constants';
-import inviteCreditsIconUrl from '../assets/icons/invite-credits.svg';
-import logoutIconUrl from '../assets/icons/logout.svg';
-import promoSubscriptionIconUrl from '../assets/icons/promo-subscription.svg';
-import rechargeIconUrl from '../assets/icons/recharge.svg';
-import soccerBallIconUrl from '../assets/icons/soccer-ball.svg';
-import usageOverviewIconUrl from '../assets/icons/usage-overview.svg';
 import { EnterpriseAccountMenu } from '../features/enterpriseAccount/components/EnterpriseAccountMenu';
 import { selectEnterpriseAccountContext } from '../features/enterpriseAccount/selectors';
-import {
-  type AccountMenuMoreLink,
-  accountMenuMoreStore,
-  getAccountMenuMoreNodes,
-} from '../services/accountMenuMore';
 import { authService } from '../services/auth';
 import { BrowserLoginStatus } from '../services/browserLoginSession';
-import {
-  getPortalCreditsDetailUrl,
-  getPortalCreditsResetActivityUrl,
-  getPortalInvitationUrl,
-  getPortalPennyActivityUrl,
-  getPortalPricingUrl,
-  getPortalProfileUrl,
-  getPortalRechargeUrl,
-} from '../services/endpoints';
+import { getPortalProfileUrl } from '../services/endpoints';
 import { i18nService } from '../services/i18n';
-import { LogReporterAction, reportYdAnalyzer } from '../services/logReporter';
 import { RootState } from '../store';
-import type { FreeCreditsReward } from '../store/slices/authSlice';
 import { AccountConnectionNotice } from './AccountConnectionNotice';
 import { AccountConnectionState, getAccountConnectionState } from './accountConnectionState';
-import { AccountMenuMoreEntry } from './AccountMenuMoreEntry';
-import {
-  type AccountPlanAnalyticsContext,
-  getAccountMenuDisplayName,
-  getAccountPlanAnalyticsContext,
-  getAccountPlanPresentation,
-  getFinalRewards,
-  isPennyActivityMenuEntryVisible,
-} from './accountMenuState';
-import { ACCOUNT_MENU_COMPACT_CTA_CLASS_NAME } from './accountMenuStyles';
-import CreditsFinalRewardModal from './CreditsFinalRewardModal';
-import { DailyCheckInAccountMenuEntry } from './DailyCheckInActivity';
-import { getDailyCheckInAuthScopeKey } from './dailyCheckInActivityState';
-import { waitForDailyCheckInRefresh } from './dailyCheckInSnapshotStore';
+import { getAccountMenuDisplayName } from './accountMenuState';
 import UserAvatarIcon from './icons/UserAvatarIcon';
 import BrowserLoginStatusCard from './login/BrowserLoginStatusCard';
 import { useBrowserLoginSession } from './login/useBrowserLoginSession';
 import LogoutConfirmDialog from './LogoutConfirmDialog';
-import SidebarLoginPromoBubble, { SIDEBAR_LOGIN_PROMO_BUBBLE_ID } from './SidebarLoginPromoBubble';
-import {
-  type StartupCreditCampaignEntry,
-  useStartupCreditCampaignEntry,
-} from './startupCreditCampaignBridge';
-import {
-  type DailyCheckInLoadResult,
-  DailyCheckInLoadResultStatus,
-  type DailyCheckInSnapshot,
-  dailyCheckInSnapshotStore,
-} from './useDailyCheckInActivity';
 
-const ACCOUNT_MENU_ANALYTICS_SOURCE = 'home_account_menu';
-// With no snapshot cached yet, the first open waits this long at most so the
-// check-in entry usually renders with the menu instead of shifting it later.
-const DAILY_CHECK_IN_MENU_OPEN_WAIT_MS = 250;
-const reportAccountMenuAction = (
-  actionType: string,
-  options: {
-    accountMode?: AccountPlanAnalyticsContext['accountMode'];
-    creditItemCount?: number;
-    canUpgrade?: boolean;
-    errorCode?: string;
-    hasCredits?: boolean;
-    hasSubscriptionPlan?: boolean;
-    isLoggedIn?: boolean;
-    planTier?: AccountPlanAnalyticsContext['planTier'];
-    result?: 'success' | 'failed';
-    subscriptionStatus?: string;
-  } = {},
-): void => {
-  console.debug('[LoginButton] reporting account menu analytics');
-  void reportYdAnalyzer({
-    action: LogReporterAction.AccountMenuAction,
-    source: ACCOUNT_MENU_ANALYTICS_SOURCE,
-    actionType,
-    accountMode: options.accountMode,
-    canUpgrade: options.canUpgrade,
-    errorCode: options.errorCode,
-    result: options.result,
-    isLoggedIn: options.isLoggedIn ?? true,
-    hasCredits: options.hasCredits,
-    hasSubscriptionPlan: options.hasSubscriptionPlan,
-    creditItemCount: options.creditItemCount,
-    planTier: options.planTier,
-    subscriptionStatus: options.subscriptionStatus,
-  });
-};
-
-const writeAccountMenuRendererLog = (
-  level: 'debug' | 'warn',
-  message: string,
-): void => {
-  try {
-    window.electron?.log?.fromRenderer?.(level, 'LoginButton', message);
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.debug(`[LoginButton] renderer log unavailable: ${errorMessage}`);
-  }
-};
-
-const refreshMenuDailyCheckIn = async (
-  accountScope: string,
-): Promise<DailyCheckInLoadResult> => {
-  try {
-    const result = await dailyCheckInSnapshotStore.refresh(accountScope);
-    if (result.status === DailyCheckInLoadResultStatus.Failed) {
-      const message = `daily check-in refresh failed for account menu code=${result.code ?? 'unknown'}`;
-      console.warn(`[LoginButton] ${message}`);
-      writeAccountMenuRendererLog('warn', message);
-    }
-    return result;
-  } catch (error) {
-    console.warn('[LoginButton] failed to refresh daily check-in for account menu:', error);
-    writeAccountMenuRendererLog('warn', 'failed to refresh daily check-in for account menu');
-    return { status: DailyCheckInLoadResultStatus.Failed };
-  }
-};
-
-const loadSubscriptionTrialState = async (): Promise<SubscriptionTrialState | null> => {
-  try {
-    return await window.electron.subscriptionTrial.status();
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.debug(`[LoginButton] subscription trial status unavailable: ${errorMessage}`);
-    return null;
-  }
-};
-
-const getPlanUpgradeLogMessage = (
-  analytics: AccountPlanAnalyticsContext,
-  hasCredits: boolean,
-  suffix?: string,
-): string => {
-  const baseMessage = [
-    'opening plan pricing portal',
-    `accountMode=${analytics.accountMode}`,
-    `subscriptionStatus=${analytics.subscriptionStatus}`,
-    `planTier=${analytics.planTier}`,
-    `hasSubscriptionPlan=${analytics.hasSubscriptionPlan}`,
-    `canUpgrade=${analytics.canUpgrade}`,
-    `hasCredits=${hasCredits}`,
-  ].join(', ');
-  return suffix ? `${baseMessage}, ${suffix}` : baseMessage;
-};
-
-const formatDate = (dateStr: string | null): string => {
-  if (!dateStr) return '';
-  const dateMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!dateMatch) return dateStr;
-  return `${dateMatch[1]}.${dateMatch[2]}.${dateMatch[3]}`;
-};
-
-const formatCredits = (n: number): string => {
-  if (Number.isInteger(n)) return n.toString();
-  return n.toFixed(2);
-};
-
-const getFinalRewardText = (reward: FreeCreditsReward | undefined) => {
-  const creditsText = reward ? formatCredits(reward.credits) : '0';
-  const isEn = i18nService.getLanguage() === 'en';
-  const presentation = reward?.presentation;
-  return {
-    creditsText,
-    title: (isEn ? presentation?.titleEn : presentation?.titleZh)
-      || i18nService.t('authFinalRewardAlt').replace('{credits}', creditsText),
-    actionText: (isEn ? presentation?.actionTextEn : presentation?.actionTextZh)
-      || i18nService.t('authFinalRewardAction').replace('{credits}', creditsText),
-  };
-};
-
-interface AccountMenuActionProps {
-  icon: React.ReactNode;
-  label: string;
-  onClick: () => void | Promise<void>;
-  trailing?: React.ReactNode;
-  danger?: boolean;
-  title?: string;
-}
-
-const AccountMenuAction: React.FC<AccountMenuActionProps> = ({
-  icon,
-  label,
-  onClick,
-  trailing,
-  danger = false,
-  title,
-}) => (
-  <button
-    type="button"
-    title={title}
-    onClick={() => void onClick()}
-    className={`mx-2 flex w-[calc(100%-1rem)] cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left text-[13px] transition-colors hover:bg-surface-raised ${
-      danger ? 'text-red-500' : 'text-foreground'
-    }`}
-  >
-    {icon}
-    <span className="min-w-0 flex-1 truncate">{label}</span>
-    {trailing}
-  </button>
-);
-
-const AccountMenuSeparator: React.FC = () => (
-  <div role="separator" className="mx-4 h-px bg-border" />
-);
-
-const DiamondSparkleIcon: React.FC = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="3 3 18 18"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.4"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className="h-4 w-4 shrink-0 text-[#111111] dark:text-white"
-    aria-hidden="true"
-  >
-    <path d="M12 4.75 14.15 9.85 19.25 12 14.15 14.15 12 19.25 9.85 14.15 4.75 12 9.85 9.85 12 4.75Z" />
-  </svg>
-);
-
-interface AccountPlanActionProps {
-  label: string;
-  expiresAt: string | null;
-  canUpgrade: boolean;
-  onUpgrade: () => void | Promise<void>;
-}
-
-const AccountPlanAction: React.FC<AccountPlanActionProps> = ({
-  label,
-  expiresAt,
-  canUpgrade,
-  onUpgrade,
-}) => {
-  const isEnglish = i18nService.getLanguage() === 'en';
-  const expiryText = expiresAt
-    ? i18nService.t('authPlanExpiresAt').replace('{date}', formatDate(expiresAt))
-    : null;
-
-  return (
-    <div className="flex w-full items-center gap-2 px-4 py-2 text-left text-[13px] text-foreground">
-      <DiamondSparkleIcon />
-      {isEnglish ? (
-        <span className="min-w-0 flex-1">
-          <span className="block truncate font-medium" title={label}>
-            {label}
-          </span>
-          {expiryText && (
-            <span className="mt-0.5 block truncate text-[9px] leading-3 text-secondary">
-              {expiryText}
-            </span>
-          )}
-        </span>
-      ) : (
-        <span className="flex min-w-0 flex-1 items-center gap-1.5">
-          <span
-            className={expiryText ? 'max-w-[64px] shrink-0 truncate font-medium' : 'min-w-0 flex-1 truncate font-medium'}
-            title={label}
-          >
-            {label}
-          </span>
-          {expiryText && (
-            <span className="shrink-0 whitespace-nowrap text-[9px] leading-4 text-secondary">
-              {expiryText}
-            </span>
-          )}
-        </span>
-      )}
-      {canUpgrade && (
-        <button
-          type="button"
-          onClick={() => void onUpgrade()}
-          className={`${ACCOUNT_MENU_COMPACT_CTA_CLASS_NAME} bg-[#111111] text-white transition-colors hover:bg-[#2a2a2a] dark:bg-white dark:text-black dark:hover:bg-white/85`}
-        >
-          {i18nService.t('authUpgradePlan')}
-        </button>
-      )}
-    </div>
-  );
-};
-
-const PortalMenuIcon: React.FC<{ src: string; darkInvert?: boolean }> = ({
-  src,
-  darkInvert = false,
-}) => (
-  <img
-    src={src}
-    alt=""
-    className={`h-4 w-4 shrink-0 ${darkInvert ? 'dark:invert' : ''}`}
-    aria-hidden="true"
-  />
-);
-
-const PointsStackIcon: React.FC = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="3 3 18 18"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.4"
-    className="h-4 w-4 shrink-0 text-[#111111] dark:text-white"
-    aria-hidden="true"
-  >
-    <ellipse cx="12" cy="7.75" rx="5.75" ry="2.5" />
-    <path d="M6.25 7.75V12.25C6.25 13.63 8.82 14.75 12 14.75C15.18 14.75 17.75 13.63 17.75 12.25V7.75" />
-    <path d="M6.25 12.25V16.25C6.25 17.63 8.82 18.75 12 18.75C15.18 18.75 17.75 17.63 17.75 16.25V12.25" />
-  </svg>
-);
-
-const PennyActivityIcon: React.FC = () => (
-  <GiftIcon className="h-4 w-4 shrink-0 text-[#111111] dark:text-white" aria-hidden="true" />
-);
-
-interface UserMenuProps {
-  dailyCheckInSnapshot: DailyCheckInSnapshot | null;
-  onClose: () => void;
-  onOpenFinalReward: (campaignCode: string) => void;
-  pennyActivityEntryVisible: boolean;
-  startupCreditEntry: StartupCreditCampaignEntry;
-}
-
-const UserMenu: React.FC<UserMenuProps> = ({
-  dailyCheckInSnapshot,
-  onClose,
-  onOpenFinalReward,
-  pennyActivityEntryVisible,
-  startupCreditEntry,
-}) => {
-  const user = useSelector((state: RootState) => state.auth.user);
-  const quota = useSelector((state: RootState) => state.auth.quota);
-  const profileSummary = useSelector((state: RootState) => state.auth.profileSummary);
-  const connectionState = useSelector((state: RootState) => getAccountConnectionState(state.auth));
-  const isEn = i18nService.getLanguage() === 'en';
-  // The menu fetches on mount, so start in the loading state to avoid a
-  // one-frame "--" flash before the mount effect runs.
-  const [summaryLoading, setSummaryLoading] = useState(!connectionState);
-  const [moreMenuState, setMoreMenuState] = useState(() => accountMenuMoreStore.getCached());
-  const [moreMenuLoading, setMoreMenuLoading] = useState(() => !accountMenuMoreStore.hasLoaded());
-
-  const refreshProfileSummary = useCallback(async () => {
-    setSummaryLoading(true);
-    try {
-      await authService.recoverAccount();
-    } finally {
-      setSummaryLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!connectionState) void refreshProfileSummary();
-  }, [connectionState, refreshProfileSummary]);
-
-  // Every open refreshes the server-configured "More" links; the cached copy
-  // renders meanwhile so the submenu is filled at once on later opens.
-  useEffect(() => {
-    let cancelled = false;
-    void accountMenuMoreStore.load().then(state => {
-      if (cancelled) return;
-      setMoreMenuState(state);
-      setMoreMenuLoading(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const openPortalUrl = async (url: string) => {
-    await window.electron.shell.openExternal(url);
-    onClose();
-  };
-
+const LoginButton: React.FC = () => {
+  const { isLoggedIn, isLoading, sessionStatus, profileSummary, user } = useSelector((state: RootState) => state.auth);
+  const enterpriseAccountContext = useSelector(selectEnterpriseAccountContext);
+  const connectionState = getAccountConnectionState({ isLoading, isLoggedIn, sessionStatus });
+  const loginSession = useBrowserLoginSession();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const loginStartingRef = useRef(false);
+  const [loginStarting, setLoginStarting] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  useEffect(() => {
+    if (!showMenu) return undefined;
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest('[data-app-modal], [data-enterprise-account-flyout]')) return;
+      if (!containerRef.current?.contains(target as Node)) setShowMenu(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showMenu]);
+
+  useEffect(() => {
+    setShowMenu(false);
+  }, [isLoggedIn]);
+
+  const handleLogin = async () => {
+    if (loginStartingRef.current) return;
+    loginStartingRef.current = true;
+    setLoginStarting(true);
+    try {
+      await authService.login();
+    } catch (error) {
+      console.error('[LoginButton] login failed:', error);
+    } finally {
+      loginStartingRef.current = false;
+      setLoginStarting(false);
+    }
+  };
+
+  const handleClick = () => {
+    if (isLoading) return;
+    if (connectionState || isLoggedIn) {
+      setShowMenu(current => !current);
+      if (isLoggedIn && !enterpriseAccountContext) void authService.recoverAccount();
+      return;
+    }
+    void handleLogin();
+  };
 
   const handleLogout = async () => {
     setLoggingOut(true);
     try {
       await authService.logout();
-      reportAccountMenuAction('logout', {
-        creditItemCount: creditItems.length,
-        hasCredits,
-        result: 'success',
-      });
-      onClose();
+      setShowMenu(false);
+      setLogoutConfirmOpen(false);
     } catch (error) {
-      reportAccountMenuAction('logout', {
-        creditItemCount: creditItems.length,
-        hasCredits,
-        result: 'failed',
-      });
-      throw error;
+      console.error('[LoginButton] logout failed:', error);
     } finally {
       setLoggingOut(false);
-      setLogoutConfirmOpen(false);
     }
   };
 
-  const handleCreditsDetail = async () => {
-    if (!profileSummary) {
-      // The summary never loaded (e.g. offline); clicking retries the fetch
-      // instead of opening a portal page that would fail the same way.
-      if (summaryLoading) return;
-      reportAccountMenuAction('retry_profile_summary', {
-        creditItemCount: creditItems.length,
-        hasCredits,
-      });
-      await refreshProfileSummary();
-      return;
-    }
-    try {
-      await openPortalUrl(getPortalCreditsDetailUrl());
-      reportAccountMenuAction('open_credits_detail', {
-        creditItemCount: creditItems.length,
-        hasCredits,
-        result: 'success',
-      });
-    } catch (error) {
-      reportAccountMenuAction('open_credits_detail', {
-        creditItemCount: creditItems.length,
-        hasCredits,
-        result: 'failed',
-      });
-      throw error;
-    }
-  };
-
-  const handleUsageOverview = async () => {
-    try {
-      await openPortalUrl(getPortalProfileUrl());
-      reportAccountMenuAction('open_usage_overview', {
-        creditItemCount: creditItems.length,
-        hasCredits,
-        result: 'success',
-      });
-    } catch (error) {
-      reportAccountMenuAction('open_usage_overview', {
-        creditItemCount: creditItems.length,
-        hasCredits,
-        result: 'failed',
-      });
-      throw error;
-    }
-  };
-
-  const handleRecharge = async () => {
-    reportAccountMenuAction('open_recharge', {
-      creditItemCount: creditItems.length,
-      hasCredits,
-    });
-    try {
-      const message = 'opening recharge portal from account menu';
-      console.debug(`[LoginButton] ${message}`);
-      writeAccountMenuRendererLog('debug', message);
-      const result = await window.electron.shell.openExternal(getPortalRechargeUrl());
-      if (!result.success) {
-        console.warn('[LoginButton] failed to open recharge portal:', result.error);
-        writeAccountMenuRendererLog(
-          'warn',
-          `failed to open recharge portal from account menu: ${result.error ?? 'unknown'}`,
-        );
-        reportAccountMenuAction('open_recharge_failed', {
-          creditItemCount: creditItems.length,
-          errorCode: 'open_external_failed',
-          hasCredits,
-          result: 'failed',
-        });
-        return;
-      }
-      onClose();
-    } catch (error) {
-      console.warn('[LoginButton] failed to open recharge portal:', error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      writeAccountMenuRendererLog(
-        'warn',
-        `failed to open recharge portal from account menu: ${errorMessage}`,
-      );
-      reportAccountMenuAction('open_recharge_failed', {
-        creditItemCount: creditItems.length,
-        errorCode: 'unknown',
-        hasCredits,
-        result: 'failed',
-      });
-    }
-  };
-
-  const handleUpgradePlan = async () => {
-    const accountPlanAnalytics = getAccountPlanAnalyticsContext({
-      accountMode: user?.accountMode ?? quota?.accountMode,
-      creditItems,
-      planName: quota?.planName,
-      subscriptionStatus: quota?.subscriptionStatus,
-    });
-    try {
-      const logMessage = getPlanUpgradeLogMessage(accountPlanAnalytics, hasCredits);
-      console.debug(`[LoginButton] ${logMessage}`);
-      writeAccountMenuRendererLog('debug', logMessage);
-      await openPortalUrl(getPortalPricingUrl());
-      reportAccountMenuAction('open_plan_upgrade', {
-        ...accountPlanAnalytics,
-        creditItemCount: creditItems.length,
-        hasCredits,
-        result: 'success',
-      });
-    } catch (error) {
-      const errorName = error instanceof Error ? error.name : 'UnknownError';
-      const logMessage = getPlanUpgradeLogMessage(
-        accountPlanAnalytics,
-        hasCredits,
-        `result=failed error=${errorName}`,
-      );
-      console.warn(`[LoginButton] ${logMessage}`, error);
-      writeAccountMenuRendererLog('warn', logMessage);
-      reportAccountMenuAction('open_plan_upgrade', {
-        ...accountPlanAnalytics,
-        creditItemCount: creditItems.length,
-        hasCredits,
-        result: 'failed',
-      });
-      throw error;
-    }
-  };
-
-  const handleInvite = async () => {
-    try {
-      await openPortalUrl(getPortalInvitationUrl());
-      reportAccountMenuAction('open_invitation', {
-        creditItemCount: creditItems.length,
-        hasCredits,
-        result: 'success',
-      });
-    } catch (error) {
-      reportAccountMenuAction('open_invitation', {
-        creditItemCount: creditItems.length,
-        hasCredits,
-        result: 'failed',
-      });
-      throw error;
-    }
-  };
-
-  const handlePennyActivity = async () => {
-    try {
-      await openPortalUrl(getPortalPennyActivityUrl());
-      reportAccountMenuAction('open_penny_activity', {
-        creditItemCount: creditItems.length,
-        hasCredits,
-        result: 'success',
-      });
-    } catch (error) {
-      reportAccountMenuAction('open_penny_activity', {
-        creditItemCount: creditItems.length,
-        hasCredits,
-        result: 'failed',
-      });
-      throw error;
-    }
-  };
-
-  const handleCreditsResetActivity = async () => {
-    try {
-      await openPortalUrl(getPortalCreditsResetActivityUrl());
-      reportAccountMenuAction('open_credits_reset_campaign', {
-        creditItemCount: creditItems.length,
-        hasCredits,
-        result: 'success',
-      });
-    } catch (error) {
-      reportAccountMenuAction('open_credits_reset_campaign', {
-        creditItemCount: creditItems.length,
-        hasCredits,
-        result: 'failed',
-      });
-      throw error;
-    }
-  };
-
-  const handleMoreLink = async (link: AccountMenuMoreLink) => {
-    const actionType = `open_more_${link.key}`;
-    try {
-      const result = await window.electron.shell.openExternal(link.url);
-      if (!result.success) {
-        writeAccountMenuRendererLog(
-          'warn',
-          `failed to open more menu link key=${link.key}: ${result.error ?? 'unknown'}`,
-        );
-        reportAccountMenuAction(actionType, {
-          creditItemCount: creditItems.length,
-          errorCode: 'open_external_failed',
-          hasCredits,
-          result: 'failed',
-        });
-        return;
-      }
-      onClose();
-      reportAccountMenuAction(actionType, {
-        creditItemCount: creditItems.length,
-        hasCredits,
-        result: 'success',
-      });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      writeAccountMenuRendererLog('warn', `failed to open more menu link key=${link.key}: ${errorMessage}`);
-      reportAccountMenuAction(actionType, {
-        creditItemCount: creditItems.length,
-        errorCode: 'unknown',
-        hasCredits,
-        result: 'failed',
-      });
-    }
-  };
-
-  const handleFinalReward = (reward: FreeCreditsReward) => {
-    reportAccountMenuAction('open_credits_final_reward', {
-      creditItemCount: creditItems.length,
-      hasCredits,
-      result: 'success',
-    });
-    onClose();
-    onOpenFinalReward(reward.campaignCode);
-  };
-
-  const totalCredits = profileSummary?.totalCreditsRemaining ?? 0;
-  const creditsUnavailable = !profileSummary && (!summaryLoading || Boolean(connectionState));
-  let creditsTrailingContent: React.ReactNode;
-  if (profileSummary) {
-    creditsTrailingContent = (
-      <>
-        {formatCredits(totalCredits)}
-        <ChevronRightIcon className="h-3.5 w-3.5 text-secondary" />
-      </>
-    );
-  } else if (summaryLoading && !connectionState) {
-    creditsTrailingContent = (
-      <ArrowPathIcon className="h-3.5 w-3.5 animate-spin text-secondary" />
-    );
-  } else {
-    creditsTrailingContent = (
-      <>
-        <span className="text-secondary">--</span>
-        <ArrowPathIcon className="h-3.5 w-3.5 text-secondary" />
-      </>
-    );
-  }
-  const creditItems = profileSummary?.creditItems ?? [];
-  const hasCredits = creditItems.length > 0;
-  const accountName = getAccountMenuDisplayName({
-    fallback: i18nService.t('myAccount'),
-    profileNickname: profileSummary?.nickname,
-    userNickname: user?.nickname,
-    userPhone: user?.phone,
-  });
-  const accountPlan = getAccountPlanPresentation(creditItems, isEn);
-  const visibleAccountPlan = user?.accountMode === 'enterprise' ? null : accountPlan;
-  const shouldShowPlanLearnAction = (
-    user?.accountMode !== 'enterprise'
-    && profileSummary !== null
-    && visibleAccountPlan === null
-  );
-  const availableResetCount = profileSummary?.availableResetCount ?? 0;
-  const availablePromoSubscriptionCount = profileSummary?.availablePromoSubscriptionCount ?? 0;
-  const campaignActionLabel = availableResetCount > 0
-    ? i18nService.t('authCreditsResetActionCount').replace('{count}', String(availableResetCount))
-    : availablePromoSubscriptionCount > 0
-      ? i18nService.t('authPromoSubscriptionAction')
-      : null;
-  const finalRewards = getFinalRewards(profileSummary?.creditsResetCampaign);
-  const moreMenuNodes = getAccountMenuMoreNodes(moreMenuState, isEn);
-
-  return (
-    <div className="absolute bottom-full left-[-0.5rem] z-50 mb-1 max-h-[calc(100vh-4rem)] w-[14.5rem] overflow-x-hidden overflow-y-auto rounded-xl border border-border bg-surface shadow-popover popover-enter">
-      {/* Account info */}
-      <div className="border-b border-border px-4 py-3">
-        <div className="truncate text-sm font-medium text-foreground">
-          {accountName}
-        </div>
-        {connectionState && (
-          <AccountConnectionNotice state={connectionState} className="mt-2 w-full text-xs" />
-        )}
-      </div>
-
-      {/* Account destinations */}
-      <div className="py-1">
-        {visibleAccountPlan && (
-          <AccountPlanAction
-            label={visibleAccountPlan.label}
-            expiresAt={visibleAccountPlan.expiresAt}
-            canUpgrade={visibleAccountPlan.canUpgrade}
-            onUpgrade={handleUpgradePlan}
-          />
-        )}
-        {shouldShowPlanLearnAction && (
-          <AccountPlanAction
-            label={i18nService.t('planFree')}
-            expiresAt={null}
-            canUpgrade
-            onUpgrade={handleUpgradePlan}
-          />
-        )}
-        <DailyCheckInAccountMenuEntry
-          enabled={startupCreditEntry.resolved
-            && !startupCreditEntry.available}
-          initialSnapshot={dailyCheckInSnapshot}
-          loadOnMount={false}
-          suppressed={!startupCreditEntry.resolved
-            || startupCreditEntry.available}
-        />
-        <AccountMenuAction
-          icon={<PointsStackIcon />}
-          label={i18nService.t('authCreditsRemaining')}
-          title={creditsUnavailable ? i18nService.t('authCreditsUnavailableRetry') : undefined}
-          trailing={(
-            <span className="ml-auto flex shrink-0 items-center gap-1 text-xs font-medium text-foreground">
-              {creditsTrailingContent}
-            </span>
-          )}
-          onClick={handleCreditsDetail}
-        />
-        <AccountMenuAction
-          icon={<PortalMenuIcon src={usageOverviewIconUrl} darkInvert />}
-          label={i18nService.t('authUsageOverview')}
-          onClick={handleUsageOverview}
-        />
-        <AccountMenuAction
-          icon={<PortalMenuIcon src={rechargeIconUrl} darkInvert />}
-          label={i18nService.t('authGoRecharge')}
-          onClick={handleRecharge}
-        />
-      </div>
-
-      <AccountMenuSeparator />
-
-      {/* Campaigns, invitations and feedback */}
-      <div className="py-1">
-        {campaignActionLabel && (
-          <AccountMenuAction
-            icon={<PortalMenuIcon src={promoSubscriptionIconUrl} darkInvert />}
-            label={campaignActionLabel}
-            onClick={handleCreditsResetActivity}
-          />
-        )}
-        {finalRewards.map(reward => {
-          const rewardText = getFinalRewardText(reward);
-          return (
-            <AccountMenuAction
-              key={`${reward.campaignCode}:${reward.claimDeadline}`}
-              icon={<PortalMenuIcon src={reward.presentation?.iconUrl || soccerBallIconUrl} darkInvert />}
-              label={rewardText.actionText}
-              onClick={() => handleFinalReward(reward)}
-            />
-          );
-        })}
-        {pennyActivityEntryVisible && (
-          <AccountMenuAction
-            icon={<PennyActivityIcon />}
-            label={i18nService.t('authPennyActivityEntry')}
-            onClick={handlePennyActivity}
-          />
-        )}
-        <AccountMenuAction
-          icon={<PortalMenuIcon src={inviteCreditsIconUrl} darkInvert />}
-          label={i18nService.t('authInviteFriendsForCredits')}
-          onClick={handleInvite}
-        />
-        <AccountMenuAction
-          icon={<QuestionMarkCircleIcon className="h-4 w-4 shrink-0 text-[#111111] dark:text-white" aria-hidden="true" />}
-          label={i18nService.t('feedbackTitle')}
-          onClick={() => {
-            onClose();
-            window.dispatchEvent(new Event(FeedbackUiEvent.Open));
-          }}
-        />
-        <AccountMenuMoreEntry
-          title={i18nService.t('authMoreMenu')}
-          emptyText={i18nService.t('authMoreMenuEmpty')}
-          nodes={moreMenuNodes}
-          loading={moreMenuLoading}
-          onOpenLink={handleMoreLink}
-        />
-      </div>
-
-      <AccountMenuSeparator />
-
-      {/* Session actions */}
-      <div className="py-1">
-        <AccountMenuAction
-          icon={<PortalMenuIcon src={logoutIconUrl} darkInvert />}
-          label={i18nService.t('authLogout')}
-          onClick={() => setLogoutConfirmOpen(true)}
-        />
-      </div>
-      {logoutConfirmOpen && (
-        <LogoutConfirmDialog
-          isLoggingOut={loggingOut}
-          onCancel={() => setLogoutConfirmOpen(false)}
-          onConfirm={() => void handleLogout()}
-        />
-      )}
-    </div>
-  );
-};
-
-const formatRewardExpiry = (expiresAt: string): string => {
-  const value = expiresAt.replace('T', ' ').slice(0, 19);
-  return i18nService.getLanguage() === 'en' ? value : value.replace(/-/g, '/');
-};
-
-interface LoginButtonProps {
-  contentLeftOffset?: number;
-  loggedOutVariant?: 'default' | 'sidebarPromo';
-  loginPromoTipVisible?: boolean;
-}
-
-const LoginButton: React.FC<LoginButtonProps> = ({
-  contentLeftOffset = 0,
-  loggedOutVariant = 'default',
-  loginPromoTipVisible = false,
-}) => {
-  const {
-    accountGeneration,
-    isLoggedIn,
-    isLoading,
-    sessionStatus,
-    ownerAccountKey,
-    profileSummary,
-    user,
-  } = useSelector((state: RootState) => state.auth);
-  const connectionState = getAccountConnectionState({ isLoading, isLoggedIn, sessionStatus });
-  const enterpriseAccountContext = useSelector(selectEnterpriseAccountContext);
-  const startupCreditEntry = useStartupCreditCampaignEntry();
-  const [showMenu, setShowMenu] = useState(false);
-  const [menuOpening, setMenuOpening] = useState(false);
-  const [menuStartupCreditEntry, setMenuStartupCreditEntry] = useState<StartupCreditCampaignEntry>(
-    startupCreditEntry,
-  );
-  const [menuDailyCheckInSnapshot, setMenuDailyCheckInSnapshot] = useState<DailyCheckInSnapshot | null>(null);
-  const [menuPennyActivityEntryVisible, setMenuPennyActivityEntryVisible] = useState(false);
-  const [loggedOutPennyActivityEntryVisible, setLoggedOutPennyActivityEntryVisible] = useState(false);
-  const [selectedFinalRewardCode, setSelectedFinalRewardCode] = useState<string | null>(null);
-  const [finalRewardLoading, setFinalRewardLoading] = useState(false);
-  const [loginStarting, setLoginStarting] = useState(false);
-  const loginStartingRef = useRef(false);
-  const loginSession = useBrowserLoginSession();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const menuOpenRequestRef = useRef(0);
-  const mountedRef = useRef(true);
-  const authAccountScope = getDailyCheckInAuthScopeKey(ownerAccountKey, accountGeneration);
-  const authAccountScopeRef = useRef(authAccountScope);
-  const finalRewards = useMemo(
-    () => getFinalRewards(profileSummary?.creditsResetCampaign),
-    [profileSummary?.creditsResetCampaign],
-  );
-  const finalReward = finalRewards.find(
-    reward => reward.campaignCode === selectedFinalRewardCode,
-  );
-  const finalRewardText = getFinalRewardText(finalReward);
-  const finalRewardOpen = finalReward !== undefined;
-  const canLoadMenuDailyCheckIn = isLoggedIn
-    && !connectionState
-    && !enterpriseAccountContext
-    && startupCreditEntry.resolved
-    && !startupCreditEntry.available;
-
-  authAccountScopeRef.current = authAccountScope;
-
-  const prefetchMenuDailyCheckIn = useCallback(() => {
-    if (!canLoadMenuDailyCheckIn
-        || dailyCheckInSnapshotStore.isFresh(authAccountScope)) return;
-    dailyCheckInSnapshotStore.refresh(authAccountScope).catch((error: unknown) => {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.debug(`[LoginButton] daily check-in prefetch failed: ${errorMessage}`);
-    });
-  }, [authAccountScope, canLoadMenuDailyCheckIn]);
-
-  const prefetchMenu = useCallback(() => {
-    prefetchMenuDailyCheckIn();
-    if (isLoggedIn && !enterpriseAccountContext) accountMenuMoreStore.prefetch();
-  }, [enterpriseAccountContext, isLoggedIn, prefetchMenuDailyCheckIn]);
-
-  // Warm the snapshot once the account is ready so the first open is instant.
-  useEffect(() => {
-    prefetchMenuDailyCheckIn();
-  }, [prefetchMenuDailyCheckIn]);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-      menuOpenRequestRef.current += 1;
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target;
-      const isEnterpriseAccountFlyout = target instanceof Element
-        && target.closest('[data-enterprise-account-flyout="true"]') !== null;
-      const isAccountMenuFlyout = target instanceof Element
-        && target.closest('[data-account-menu-flyout="true"]') !== null;
-      // Dialogs opened from the menu (e.g. the logout confirmation) are portaled
-      // to <body>; clicks inside them must not dismiss the menu that owns them.
-      const isInsideModal = target instanceof Element
-        && target.closest('[data-app-modal]') !== null;
-      if (
-        containerRef.current
-        && !containerRef.current.contains(target as Node)
-        && !isEnterpriseAccountFlyout
-        && !isAccountMenuFlyout
-        && !isInsideModal
-      ) {
-        setShowMenu(false);
-      }
-    };
-    if (showMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showMenu]);
-
-  useEffect(() => {
-    if (!isLoggedIn || (selectedFinalRewardCode && !finalReward)) {
-      setSelectedFinalRewardCode(null);
-    }
-  }, [finalReward, isLoggedIn, selectedFinalRewardCode]);
-
-  useEffect(() => {
-    if (!isLoggedIn) return;
-    menuOpenRequestRef.current += 1;
-    setMenuOpening(false);
-    setShowMenu(false);
-    setMenuDailyCheckInSnapshot(null);
-    setMenuPennyActivityEntryVisible(false);
-  }, [authAccountScope, isLoggedIn]);
-
-  useEffect(() => {
-    if (isLoggedIn) return;
-    menuOpenRequestRef.current += 1;
-    setMenuOpening(false);
-    setShowMenu(false);
-    setMenuDailyCheckInSnapshot(null);
-    setMenuPennyActivityEntryVisible(false);
-  }, [isLoggedIn]);
-
-  // The login promo bubble can appear on hover at any time, so the optional
-  // offer row is resolved ahead of time instead of when the bubble is shown.
-  useEffect(() => {
-    setLoggedOutPennyActivityEntryVisible(false);
-    if (isLoggedIn || connectionState) return;
-    let cancelled = false;
-    void loadSubscriptionTrialState().then(state => {
-      if (cancelled) return;
-      setLoggedOutPennyActivityEntryVisible(isPennyActivityMenuEntryVisible(state, {
-        isLoggedIn: false,
-        isEnterprise: false,
-      }));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [connectionState, isLoggedIn]);
-
-  // The optional campaign loads after the menu opens and must never delay it.
-  useEffect(() => {
-    setMenuPennyActivityEntryVisible(false);
-    if (!showMenu || !isLoggedIn || enterpriseAccountContext || user?.accountMode === 'enterprise') return;
-    let cancelled = false;
-    void loadSubscriptionTrialState().then(state => {
-      if (cancelled) return;
-      setMenuPennyActivityEntryVisible(isPennyActivityMenuEntryVisible(state, {
-        isLoggedIn: true,
-        isEnterprise: false,
-      }));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [authAccountScope, enterpriseAccountContext, isLoggedIn, showMenu, user?.accountMode]);
-
-  const handleClick = async () => {
-    if (isLoading) return;
-    if (connectionState) {
-      setShowMenu(current => !current);
-      return;
-    }
-    if (isLoggedIn) {
-      const creditItemCount = profileSummary?.creditItems?.length ?? 0;
-      if (showMenu) {
-        menuOpenRequestRef.current += 1;
-        setMenuOpening(false);
-        setShowMenu(false);
-        reportAccountMenuAction('close_menu', {
-          creditItemCount,
-          hasCredits: creditItemCount > 0,
-          isLoggedIn: true,
-        });
-        return;
-      }
-      if (menuOpening) return;
-
-      const requestId = ++menuOpenRequestRef.current;
-      const requestAccountScope = authAccountScope;
-      const isCurrentMenuRequest = () => (
-        mountedRef.current
-        && menuOpenRequestRef.current === requestId
-        && authAccountScopeRef.current === requestAccountScope
-      );
-      setMenuStartupCreditEntry(startupCreditEntry);
-      setMenuPennyActivityEntryVisible(false);
-      reportAccountMenuAction('open_menu', {
-        creditItemCount,
-        hasCredits: creditItemCount > 0,
-        isLoggedIn: true,
-      });
-      if (!canLoadMenuDailyCheckIn) {
-        setMenuDailyCheckInSnapshot(null);
-        setShowMenu(true);
-        return;
-      }
-
-      // The store may have dropped a refresh that lost to a claim, so read it
-      // back instead of trusting the refresh result directly.
-      const showLatestDailyCheckIn = () => {
-        if (!isCurrentMenuRequest()) return;
-        setMenuDailyCheckInSnapshot(dailyCheckInSnapshotStore.get(requestAccountScope));
-      };
-      const cachedSnapshot = dailyCheckInSnapshotStore.get(requestAccountScope);
-      const refreshRequest = dailyCheckInSnapshotStore.isFresh(requestAccountScope)
-        ? null
-        : refreshMenuDailyCheckIn(requestAccountScope);
-
-      // A known snapshot opens the menu at once; the refresh updates the entry
-      // in place, which keeps the layout steady.
-      if (cachedSnapshot || !refreshRequest) {
-        setMenuDailyCheckInSnapshot(cachedSnapshot);
-        setShowMenu(true);
-        void refreshRequest?.then(showLatestDailyCheckIn);
-        return;
-      }
-
-      setMenuOpening(true);
-      setMenuDailyCheckInSnapshot(null);
-      const earlyResult = await waitForDailyCheckInRefresh(
-        refreshRequest,
-        DAILY_CHECK_IN_MENU_OPEN_WAIT_MS,
-      );
-      if (!isCurrentMenuRequest()) return;
-      setMenuDailyCheckInSnapshot(dailyCheckInSnapshotStore.get(requestAccountScope));
-      setShowMenu(true);
-      setMenuOpening(false);
-      if (earlyResult === null) void refreshRequest.then(showLatestDailyCheckIn);
-      return;
-    }
-    setShowMenu(false);
-    await handleLogin();
-  };
-
-  const handleLogin = async () => {
-    // The browser handoff can take a few seconds; repeat clicks would only
-    // open extra login tabs.
-    // The ref also catches clicks that land before the disabled state renders.
-    if (loginStartingRef.current) return;
-    loginStartingRef.current = true;
-    const loginVariant = useSidebarPromoLogin ? 'sidebar_promo' : 'default';
-    writeAccountMenuRendererLog('debug', `login requested variant=${loginVariant}`);
-    setLoginStarting(true);
-    try {
-      const result = await authService.login();
-      if (!result.success) {
-        writeAccountMenuRendererLog(
-          'warn',
-          `login browser handoff failed variant=${loginVariant} reason=${result.reason ?? 'unknown'}`,
-        );
-      }
-      reportAccountMenuAction('login', {
-        isLoggedIn: false,
-        result: result.success ? 'success' : 'failed',
-        errorCode: result.success ? undefined : (result.reason ?? 'unknown'),
-      });
-    } catch (error) {
-      writeAccountMenuRendererLog('warn', `login request failed variant=${loginVariant}`);
-      reportAccountMenuAction('login', {
-        isLoggedIn: false,
-        result: 'failed',
-      });
-      throw error;
-    } finally {
-      loginStartingRef.current = false;
-      if (mountedRef.current) setLoginStarting(false);
-    }
-  };
-
-  const closeFinalReward = () => {
-    if (finalRewardLoading) return;
-    setSelectedFinalRewardCode(null);
-  };
-
-  const claimFinalReward = async () => {
-    if (!finalReward || finalRewardLoading) return;
-    setFinalRewardLoading(true);
-    try {
-      const claimed = await authService.claimCreditsFinalReward(finalReward.campaignCode);
-      setSelectedFinalRewardCode(null);
-      window.dispatchEvent(new CustomEvent('app:showToast', {
-        detail: i18nService.t('authFinalRewardClaimSuccess')
-          .replace('{credits}', formatCredits(claimed.creditsGranted))
-          .replace('{date}', formatRewardExpiry(claimed.expiresAt)),
-      }));
-    } catch (error) {
-      await authService.fetchProfileSummary();
-      window.dispatchEvent(new CustomEvent('app:showToast', {
-        detail: error instanceof Error ? error.message : i18nService.t('authFinalRewardClaimFailed'),
-      }));
-    } finally {
-      setFinalRewardLoading(false);
-    }
-  };
-
-  const useSidebarPromoLogin = !isLoggedIn && !connectionState && loggedOutVariant === 'sidebarPromo';
-  // The session also reflects logins started from other entry points.
   const loginSessionActive = !isLoggedIn && !connectionState && loginSession !== null;
   const loginOpening = loginStarting || (loginSessionActive && (
     loginSession.status === BrowserLoginStatus.Opening || loginSession.status === BrowserLoginStatus.Verifying
@@ -1146,71 +89,38 @@ const LoginButton: React.FC<LoginButtonProps> = ({
   const loginInProgress = loginOpening || (loginSessionActive && loginSession.status === BrowserLoginStatus.Waiting);
   const loginStatusCardVisible = loginSessionActive
     && (loginSession.status !== BrowserLoginStatus.Opening || loginSession.url !== null);
-  const loginButtonTitle = (() => {
-    if (connectionState) return i18nService.t(isLoading ? 'authRestoringSession' : 'authConnectionUnavailable');
-    if (loginOpening) return i18nService.t('loginStarting');
-    if (loginInProgress) return i18nService.t('browserLoginWaitingTitle');
-    return undefined;
-  })();
+  const accountName = getAccountMenuDisplayName({
+    fallback: i18nService.t('myAccount'),
+    profileNickname: profileSummary?.nickname,
+    userNickname: user?.nickname,
+    userPhone: user?.phone,
+  });
 
   return (
     <div ref={containerRef} className="relative">
       <button
         type="button"
         onClick={handleClick}
-        onFocus={prefetchMenu}
-        onPointerEnter={prefetchMenu}
-        // Only the handoff itself blocks clicks; while waiting, a click reopens the page.
         disabled={isLoading || loginOpening}
         aria-busy={isLoading || loginInProgress}
-        aria-describedby={useSidebarPromoLogin && !loginSessionActive ? SIDEBAR_LOGIN_PROMO_BUBBLE_ID : undefined}
-        title={loginButtonTitle}
-        className={
-          useSidebarPromoLogin
-            ? `peer sidebar-login-rainbow inline-flex h-7 shrink-0 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-[13px] font-medium leading-none transition-[filter,transform] ${loginInProgress ? 'min-w-[5.75rem]' : 'w-[5.75rem]'}`
-            : 'inline-flex h-7 items-center justify-start gap-2 rounded-md px-1.5 text-sm font-normal text-foreground/80 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.04] cursor-pointer'
-        }
+        title={connectionState
+          ? i18nService.t(isLoading ? 'authRestoringSession' : 'authConnectionUnavailable')
+          : undefined}
+        className="inline-flex h-7 items-center justify-start gap-2 rounded-md px-1.5 text-sm font-normal text-foreground/80 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.04] disabled:opacity-60"
       >
-        {isLoggedIn || connectionState ? (
-          <>
-            {user?.avatarUrl ? (
-              <img src={user.avatarUrl} alt="" className="h-4 w-4 shrink-0 rounded-full" />
-            ) : (
-              <UserAvatarIcon className="h-4 w-4 shrink-0" />
-            )}
-            <span className="truncate max-w-[80px]">{i18nService.t('myAccount')}</span>
-            {connectionState === AccountConnectionState.Restoring && (
-              <ArrowPathIcon className="h-3.5 w-3.5 shrink-0 animate-spin text-secondary" />
-            )}
-          </>
+        {user?.avatarUrl && isLoggedIn ? (
+          <img src={user.avatarUrl} alt="" className="h-4 w-4 shrink-0 rounded-full" />
+        ) : loginInProgress || connectionState === AccountConnectionState.Restoring ? (
+          <ArrowPathIcon className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />
         ) : (
-          useSidebarPromoLogin ? (
-            loginInProgress ? (
-              <>
-                <ArrowPathIcon className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden="true" />
-                {i18nService.t('browserLoginWaitingLabel')}
-              </>
-            ) : (
-              i18nService.t('sidebarLoginNow')
-            )
-          ) : (
-            <>
-              {loginInProgress ? (
-                <ArrowPathIcon className="h-4 w-4 shrink-0 animate-spin text-secondary" aria-hidden="true" />
-              ) : (
-                <UserAvatarIcon className="h-4 w-4 shrink-0" />
-              )}
-              {i18nService.t(loginInProgress ? 'browserLoginWaitingLabel' : 'login')}
-            </>
-          )
+          <UserAvatarIcon className="h-4 w-4 shrink-0" />
         )}
+        <span className="max-w-[80px] truncate">
+          {isLoggedIn || connectionState
+            ? i18nService.t('myAccount')
+            : i18nService.t(loginInProgress ? 'browserLoginWaitingLabel' : 'login')}
+        </span>
       </button>
-      {useSidebarPromoLogin && !loginSessionActive && (
-        <SidebarLoginPromoBubble
-          autoVisible={loginPromoTipVisible}
-          pennyOfferVisible={loggedOutPennyActivityEntryVisible}
-        />
-      )}
       {loginStatusCardVisible && (
         <BrowserLoginStatusCard
           session={loginSession}
@@ -1223,36 +133,43 @@ const LoginButton: React.FC<LoginButtonProps> = ({
           <AccountConnectionNotice state={connectionState} className="w-full text-xs" />
         </div>
       )}
-      {showMenu && isLoggedIn && (
-        enterpriseAccountContext
-          ? (
-            <EnterpriseAccountMenu
-              context={enterpriseAccountContext}
-              onClose={() => setShowMenu(false)}
-            />
-          )
-          : (
-            <UserMenu
-              dailyCheckInSnapshot={menuDailyCheckInSnapshot}
-              onClose={() => setShowMenu(false)}
-              onOpenFinalReward={setSelectedFinalRewardCode}
-              pennyActivityEntryVisible={menuPennyActivityEntryVisible}
-              startupCreditEntry={menuStartupCreditEntry}
-            />
-          )
+      {showMenu && isLoggedIn && (enterpriseAccountContext ? (
+        <EnterpriseAccountMenu context={enterpriseAccountContext} onClose={() => setShowMenu(false)} />
+      ) : (
+        <div className="absolute bottom-full left-[-0.5rem] z-50 mb-1 w-[14.5rem] rounded-xl border border-border bg-surface p-2 shadow-popover">
+          <div className="truncate border-b border-border px-2 py-2 text-sm font-medium text-foreground">{accountName}</div>
+          <button
+            type="button"
+            className="w-full rounded-md px-2 py-2 text-left text-sm text-foreground hover:bg-surface-raised"
+            onClick={() => { void window.electron.shell.openExternal(getPortalProfileUrl()); setShowMenu(false); }}
+          >
+            {i18nService.t('authUsageOverview')}
+          </button>
+          <button
+            type="button"
+            className="w-full rounded-md px-2 py-2 text-left text-sm text-foreground hover:bg-surface-raised"
+            onClick={() => { window.dispatchEvent(new Event(FeedbackUiEvent.Open)); setShowMenu(false); }}
+          >
+            {i18nService.t('feedbackTitle')}
+          </button>
+          <div className="border-t border-border pt-1">
+            <button
+              type="button"
+              className="w-full rounded-md px-2 py-2 text-left text-sm text-foreground hover:bg-surface-raised"
+              onClick={() => setLogoutConfirmOpen(true)}
+            >
+              {i18nService.t('authLogout')}
+            </button>
+          </div>
+        </div>
+      ))}
+      {logoutConfirmOpen && (
+        <LogoutConfirmDialog
+          isLoggingOut={loggingOut}
+          onCancel={() => setLogoutConfirmOpen(false)}
+          onConfirm={() => void handleLogout()}
+        />
       )}
-      <CreditsFinalRewardModal
-        open={finalRewardOpen}
-        loading={finalRewardLoading}
-        contentLeftOffset={contentLeftOffset}
-        campaignCode={finalReward?.campaignCode}
-        creditsText={finalRewardText.creditsText}
-        title={finalRewardText.title}
-        actionText={finalRewardText.actionText}
-        posterUrl={finalReward?.presentation?.posterUrl}
-        onClose={closeFinalReward}
-        onClaim={() => void claimFinalReward()}
-      />
     </div>
   );
 };

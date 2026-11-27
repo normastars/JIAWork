@@ -3,7 +3,6 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   ClockIcon,
-  GiftIcon,
   LockClosedIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
@@ -22,7 +21,6 @@ import { useDispatch, useSelector } from 'react-redux';
 import { ModelPresetId } from '../../shared/modelPresets/constants';
 import { getProviderIcon, ProviderIconId } from '../providers/uiRegistry';
 import { authService } from '../services/auth';
-import { getPortalPricingUrl } from '../services/endpoints';
 import { i18nService, type LanguageType } from '../services/i18n';
 import { modelPresetName } from '../services/modelPresets';
 import {
@@ -46,8 +44,6 @@ import ModelContextWindowControl from './modelSelector/ModelContextWindowControl
 import ModelThinkingMenu, {
   getModelThinkingLevelLabel,
 } from './modelSelector/ModelThinkingMenu';
-import { useModelPurchaseOffer } from './modelSelector/useModelPurchaseOffer';
-import PurchaseOfferCountdown from './PurchaseOfferCountdown';
 import Tooltip, { TooltipPosition } from './ui/Tooltip';
 
 interface ModelSelectorProps {
@@ -192,71 +188,44 @@ export const ModelAccessPromptModal: React.FC<ModelAccessPromptModalProps> = ({
   titleKey,
   descriptionKey,
   primaryButtonKey,
-  showLearnMore = true,
   anchorRef,
   onChooseModel,
 }) => {
   const busyPrompt = promptKind === ModelAccessPromptKind.Busy;
   const agenticNotReadyPrompt = promptKind === ModelAccessPromptKind.AgenticNotReady;
   const loginPrompt = promptKind === ModelAccessPromptKind.Login;
-  const purchaseOffer = useModelPurchaseOffer(promptKind === ModelAccessPromptKind.Subscribe, onClose);
   const resolvedTitleKey = titleKey ?? (
     busyPrompt ? 'modelBusyBadge' : agenticNotReadyPrompt
       ? 'modelSelectorAgenticNotReadyTitle'
-      : loginPrompt ? 'modelSelectorLoginTitle' : 'modelSelectorSubscribeTitle'
+      : loginPrompt ? 'modelSelectorLoginTitle' : 'modelSelectorUnavailable'
   );
   const resolvedDescriptionKey = descriptionKey ?? (
     busyPrompt ? 'modelBusyHint' : agenticNotReadyPrompt
       ? 'serverModelAgenticNotReady'
-      : loginPrompt ? 'modelSelectorLoginDesc'
-        : promptKind === ModelAccessPromptKind.SubscriptionPriority ? 'modelSubscriptionPriorityHint' : 'modelSelectorSubscribeDesc'
+      : loginPrompt ? 'modelSelectorLoginDesc' : 'modelSelectorUnavailableHelp'
   );
   const resolvedPrimaryButtonKey = primaryButtonKey ?? (
-    busyPrompt ? 'close' : agenticNotReadyPrompt
-      ? 'modelSelectorAgenticNotReadyBtn'
-      : loginPrompt ? 'modelSelectorLoginBtn' : 'modelSelectorSubscribeBtn'
+    loginPrompt ? 'modelSelectorLoginBtn' : 'close'
   );
 
-  const openSubscriptionPage = async () => {
-    const pricingUrl = promptKind === ModelAccessPromptKind.SubscriptionPriority
-      ? getPortalPricingUrl(undefined, { tab: 'subscription' }) : purchaseOffer.getPricingUrl();
-    if (!pricingUrl) return;
-    onClose();
-    await window.electron.shell.openExternal(pricingUrl);
-  };
-
   const handlePrimary = async () => {
-    if (promptKind === ModelAccessPromptKind.Login) {
-      onClose();
-      await authService.login();
-      return;
-    }
-    if (busyPrompt || promptKind === ModelAccessPromptKind.AgenticNotReady) {
-      onClose();
-      return;
-    }
-    await openSubscriptionPage();
+    onClose();
+    if (loginPrompt) await authService.login();
   };
 
   if (anchorRef) {
-    const subscriptionPriority = promptKind === ModelAccessPromptKind.SubscriptionPriority;
-    const purchase = subscriptionPriority || promptKind === ModelAccessPromptKind.Subscribe;
     return (
       <ModelAccessPromptPopover
         anchorRef={anchorRef}
-        title={i18nService.t(subscriptionPriority ? 'modelSelectorSubscriptionRequiredTitle' : resolvedTitleKey)}
-        description={purchaseOffer.description ?? i18nService.t(subscriptionPriority ? 'modelSelectorSubscriptionRequiredDesc' : resolvedDescriptionKey)}
-        primaryLabel={i18nService.t(subscriptionPriority ? 'modelSelectorViewSubscription' : resolvedPrimaryButtonKey)}
-        purchase={purchase}
-        pending={purchaseOffer.isRefreshing}
+        title={i18nService.t(resolvedTitleKey)}
+        description={i18nService.t(resolvedDescriptionKey)}
+        primaryLabel={i18nService.t(resolvedPrimaryButtonKey)}
+        purchase={false}
+        pending={false}
         onPrimary={() => { void handlePrimary(); }}
         onClose={onClose}
         onChooseModel={onChooseModel}
-      >
-        {purchaseOffer.offer?.expiresAtEpochMs != null && (
-          <div className="mt-3"><PurchaseOfferCountdown offer={purchaseOffer.offer} /></div>
-        )}
-      </ModelAccessPromptPopover>
+      />
     );
   }
 
@@ -272,13 +241,8 @@ export const ModelAccessPromptModal: React.FC<ModelAccessPromptModalProps> = ({
             {i18nService.t(resolvedTitleKey)}
           </div>
           <div className="mt-1.5 text-sm leading-5 text-secondary">
-            {purchaseOffer.description ?? i18nService.t(resolvedDescriptionKey)}
+            {i18nService.t(resolvedDescriptionKey)}
           </div>
-          {purchaseOffer.offer?.expiresAtEpochMs != null && (
-            <div className="mt-3">
-              <PurchaseOfferCountdown offer={purchaseOffer.offer} />
-            </div>
-          )}
         </div>
         <button
           type="button"
@@ -292,20 +256,10 @@ export const ModelAccessPromptModal: React.FC<ModelAccessPromptModalProps> = ({
       <button
         type="button"
         onClick={() => { void handlePrimary(); }}
-        disabled={purchaseOffer.isRefreshing}
         className="mt-5 w-full rounded-lg bg-primary px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-wait disabled:opacity-50"
       >
         {i18nService.t(resolvedPrimaryButtonKey)}
       </button>
-      {loginPrompt && showLearnMore && (
-        <button
-          type="button"
-          onClick={() => { void openSubscriptionPage(); }}
-          className="mt-3 w-full text-center text-sm text-secondary transition-colors hover:text-foreground"
-        >
-          {i18nService.t('modelSelectorLearnMore')}
-        </button>
-      )}
     </Modal>
   );
 };
@@ -1359,12 +1313,6 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
         <span className="flex min-w-0 max-w-[168px] items-center gap-1 overflow-hidden">
           {model.presetId && restricted && model.restrictionHint && (
             <span className="max-w-full truncate text-[10px] text-secondary" title={model.restrictionHint}>{model.restrictionHint}</span>
-          )}
-          {!model.presetId && model.limitedFreeActive && (
-            <span className="inline-flex min-w-0 max-w-full items-center gap-[3px] whitespace-nowrap rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] leading-none text-red-600 dark:text-red-400" title={i18nService.t('modelLimitedFreeBadge')}>
-              <GiftIcon className="h-3 w-3 shrink-0" strokeWidth={1.8} aria-hidden="true" />
-              {!iconOnlyBadges && <span className="truncate">{i18nService.t('modelLimitedFreeBadge')}</span>}
-            </span>
           )}
           {model.subscriptionPriority && (
             <span className="inline-flex min-w-0 max-w-full items-center gap-[3px] whitespace-nowrap rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] leading-none text-amber-700 dark:text-amber-300" title={i18nService.t('modelSubscriptionPriorityHint')}>

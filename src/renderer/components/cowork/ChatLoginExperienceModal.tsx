@@ -102,9 +102,6 @@ const ChatLoginExperienceModal: React.FC<ChatLoginExperienceModalProps> = ({
               </h1>
             </div>
             <div className="relative">
-              <p className="mb-4 text-[17px] font-medium leading-[1.5] text-[#ff4f36]">
-                {i18nService.t('loginIntroductionPromo')}
-              </p>
               <button
                 type="button"
                 onClick={onStart}

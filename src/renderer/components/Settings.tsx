@@ -1,5 +1,5 @@
-import { ArchiveBoxIcon, ArrowPathIcon, ArrowPathRoundedSquareIcon, ChatBubbleLeftIcon, CheckCircleIcon, CpuChipIcon, CubeIcon, EnvelopeIcon, ExclamationTriangleIcon, GlobeAltIcon, InformationCircleIcon, MagnifyingGlassIcon, QuestionMarkCircleIcon, SignalIcon, SunIcon, TrashIcon, WrenchScrewdriverIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import React, { useCallback,useEffect, useMemo, useRef, useState } from 'react';
+import { ArchiveBoxIcon, ArrowPathIcon, ArrowPathRoundedSquareIcon, ArrowsPointingInIcon, ArrowsPointingOutIcon, ChatBubbleLeftIcon, CheckCircleIcon, CpuChipIcon, CubeIcon, EnvelopeIcon, ExclamationTriangleIcon, GlobeAltIcon, InformationCircleIcon, MagnifyingGlassIcon, QuestionMarkCircleIcon, SignalIcon, SunIcon, TrashIcon, WrenchScrewdriverIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
 import { OpenSettingsTab } from '../../shared/app/constants';
@@ -38,6 +38,7 @@ import { useSkin } from '../providers/SkinProvider';
 import { apiService } from '../services/api';
 import { configService } from '../services/config';
 import { coworkService } from '../services/cowork';
+import { fetchAllowedModels, resolveAllowedModels, syncEnterpriseAgentModels } from '../services/enterpriseModelAccess';
 import { i18nService, LanguageType } from '../services/i18n';
 import { imService } from '../services/im';
 import { LogReporterAction, reportYdAnalyzer } from '../services/logReporter';
@@ -80,10 +81,13 @@ import EditIcon from './icons/EditIcon';
 import MessageCopyIcon from './icons/MessageCopyIcon';
 import PlugIcon from './icons/PlugIcon';
 import PlusCircleIcon from './icons/PlusCircleIcon';
+import SkillIcon from './icons/SkillIcon';
 import IMSettings from './im/IMSettings';
+import { NlqModelManager } from './nlq/NlqModelManager';
 import PluginsSettings, { type PluginPendingChanges, type PluginsSettingsHandle } from './plugins/PluginsSettings';
 import { AboutOpenSourceAction, AboutOpenSourceRows, AboutOpenSourceStarPrompt } from './settings/AboutOpenSource';
 import BrowserWebAccessSettings from './settings/BrowserWebAccessSettings';
+import GardyModelConfig from './settings/GardyModelConfig';
 import HelpFeedbackSettings from './settings/HelpFeedbackSettings';
 import {
   buildGeminiConnectionTestRequest,
@@ -126,11 +130,12 @@ import {
 } from './settings/settingsTypography';
 import { useProviderTransfer } from './settings/useProviderTransfer';
 import EmailSkillConfig from './skills/EmailSkillConfig';
+import SkillsManager from './skills/SkillsManager';
 import SkinPresentationScope from './skin/SkinPresentationScope';
 import SkinSettingsSection from './skin/SkinSettingsSection';
 import ThemedSelect from './ui/ThemedSelect';
 
-type TabType = 'general' | 'appearance' | 'desktopCompanion' | 'coworkAgentEngine' | 'model' | 'browserWebAccess' | 'coworkMemory' | 'coworkDreaming' | 'shortcuts' | 'im' | 'email' | 'plugins' | 'experimental' | 'help' | 'about';
+type TabType = 'general' | 'appearance' | 'desktopCompanion' | 'coworkAgentEngine' | 'model' | 'dataModel' | 'skills' | 'browserWebAccess' | 'coworkMemory' | 'coworkDreaming' | 'shortcuts' | 'im' | 'email' | 'plugins' | 'experimental' | 'help' | 'about';
 
 const waitForNextPaint = (): Promise<void> => new Promise(resolve => {
   window.requestAnimationFrame(() => {
@@ -964,13 +969,16 @@ export type SettingsOpenOptions = {
 };
 
 interface SettingsProps extends SettingsOpenOptions {
+  appName: string;
   onClose: () => void;
   onStartAiSkin?: (text: string, kitId: string) => void;
   initialTabRequestId?: number;
   onUpdateFound?: (info: AppUpdateInfo) => void;
   enterpriseConfig?: {
+    language?: LanguageType;
     ui?: Record<string, 'hide' | 'disable' | 'readonly'>;
     disableUpdate?: boolean;
+    disableTelemetry?: boolean;
   } | null;
 }
 
@@ -1399,6 +1407,7 @@ const SettingsNumberInputRow: React.FC<{
 );
 
 const Settings: React.FC<SettingsProps> = ({
+  appName,
   onClose,
   onStartAiSkin,
   initialTab,
@@ -1418,6 +1427,7 @@ const Settings: React.FC<SettingsProps> = ({
   } = useSkin();
   // 状态
   const [activeTab, setActiveTab] = useState<TabType>(initialTab ?? 'general');
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
   const [themeId, setThemeId] = useState<string>(themeService.getDefaultThemeId());
@@ -1429,6 +1439,7 @@ const Settings: React.FC<SettingsProps> = ({
   const [useSystemProxy, setUseSystemProxy] = useState(false);
   const [sqliteAutoBackupEnabled, setSqliteAutoBackupEnabled] = useState(false);
   const [usageAnalyticsEnabled, setUsageAnalyticsEnabled] = useState(true);
+  const isEnterpriseDistribution = enterpriseConfig?.ui?.login === 'hide';
   const [taskCompletionNotificationMode, setTaskCompletionNotificationMode] =
     useState<TaskCompletionNotificationMode>(TaskCompletionNotificationMode.Unfocused);
   const [permissionNotificationsEnabled, setPermissionNotificationsEnabled] = useState(true);
@@ -2345,10 +2356,12 @@ const Settings: React.FC<SettingsProps> = ({
   }, [buildNoticeMessage]);
 
   useEffect(() => {
-    if (initialTab) {
+    if (initialTab && enterpriseConfig?.ui?.[`settings.${initialTab}`] !== 'hide') {
       setActiveTab(initialTab);
+    } else if (initialTab) {
+      setActiveTab('general');
     }
-  }, [initialTab, initialTabRequestId]);
+  }, [initialTab, initialTabRequestId, enterpriseConfig?.ui]);
 
   // Subscribe to language changes
   useEffect(() => {
@@ -3426,8 +3439,37 @@ const Settings: React.FC<SettingsProps> = ({
     setError(null);
 
     try {
-      const normalizedProviders = normalizeProvidersForSettingsSave(providers);
-      const primaryProvider = resolvePrimaryProviderForSettingsSave(normalizedProviders, activeProvider);
+      const isGardyModelSave = isEnterpriseDistribution && activeTab === 'model';
+      const providersToSave = isGardyModelSave
+        ? Object.fromEntries(Object.entries(providers).map(([key, provider]) => [
+          key,
+          key === ProviderName.OpenAI
+            ? {
+              ...provider,
+              enabled: Boolean(provider.apiKey.trim()),
+              authType: ProviderAuthType.ApiKey,
+              apiFormat: 'openai',
+              models: provider.models?.length ? provider.models : getDefaultProviders().openai.models,
+            }
+            : { ...provider, enabled: false },
+        ])) as ProvidersConfig
+        : providers;
+      const normalizedProviders = normalizeProvidersForSettingsSave(providersToSave);
+      const previousConfig = configService.getConfig();
+      let allowedModelIds: string[] = [];
+      if (isGardyModelSave && normalizedProviders.openai.enabled) {
+        const openAIProvider = normalizedProviders.openai;
+        allowedModelIds = await fetchAllowedModels(openAIProvider.baseUrl, openAIProvider.apiKey);
+        const resolved = resolveAllowedModels(
+          allowedModelIds,
+          [...(openAIProvider.models ?? []), ...(getDefaultProviders().openai.models ?? [])],
+          previousConfig.model.defaultModel,
+        );
+        normalizedProviders.openai = { ...openAIProvider, models: resolved.models };
+      }
+      const primaryProvider = isGardyModelSave
+        ? normalizedProviders.openai
+        : resolvePrimaryProviderForSettingsSave(normalizedProviders, activeProvider);
       const normalizedBrowserWebAccess = normalizeBrowserWebAccessConfig({
         ...browserWebAccess,
         browserEnabled: true,
@@ -3442,7 +3484,11 @@ const Settings: React.FC<SettingsProps> = ({
         extraArgs: [],
         webFetch: defaultBrowserWebAccessConfig.webFetch,
       });
-      const previousConfig = configService.getConfig();
+      const openAIModels = normalizedProviders.openai.models ?? [];
+      const preferredOpenAIModel = openAIModels.find(model => (
+        previousConfig.model.defaultModelProvider === ProviderName.OpenAI
+        && model.id === previousConfig.model.defaultModel
+      )) ?? openAIModels.find(model => model.id === 'gpt-5-mini') ?? openAIModels[0];
       const previousBrowserWebAccess = normalizeBrowserWebAccessConfig(previousConfig.browserWebAccess);
       const previousShortcuts: ShortcutConfig = {
         ...defaultConfig.shortcuts!,
@@ -3519,10 +3565,17 @@ const Settings: React.FC<SettingsProps> = ({
           baseUrl: primaryProvider.baseUrl,
         },
         providers: normalizedProviders, // Save all providers configuration
+        ...(isGardyModelSave && preferredOpenAIModel ? {
+          model: {
+            ...previousConfig.model,
+            defaultModel: preferredOpenAIModel.id,
+            defaultModelProvider: ProviderName.OpenAI,
+          },
+        } : {}),
         theme,
         uiFontSize,
         codeFontSize,
-        language,
+        language: isEnterpriseDistribution ? 'zh' : language,
         artifactAutoPreviewEnabled,
         useSystemProxy,
         sqliteAutoBackupEnabled,
@@ -3540,6 +3593,10 @@ const Settings: React.FC<SettingsProps> = ({
         },
       });
 
+      if (isGardyModelSave && allowedModelIds.length > 0 && preferredOpenAIModel) {
+        await syncEnterpriseAgentModels(allowedModelIds, preferredOpenAIModel.id);
+      }
+
       if (!usageAnalyticsEnabled) {
         clearPendingPublishingConversionAttribution();
         clearPublishingSubscriptionRecoveryAnalytics();
@@ -3554,7 +3611,7 @@ const Settings: React.FC<SettingsProps> = ({
       applyTypographyPreferences({ uiFontSize, codeFontSize });
 
       // 应用语言
-      i18nService.setLanguage(language, { persist: false });
+      i18nService.setLanguage(isEnterpriseDistribution ? 'zh' : language, { persist: false });
 
       // Set API with the primary provider - handle Qwen OAuth
       let apiKeyToUse = primaryProvider.apiKey;
@@ -4401,7 +4458,9 @@ const Settings: React.FC<SettingsProps> = ({
       { key: 'appearance' as TabType,     label: i18nService.t('appearance'),     icon: <SunIcon className="h-5 w-5" /> },
       { key: 'desktopCompanion' as TabType, label: i18nService.t('desktopCompanionTitle'), icon: <FloatingOrbTabIcon className="h-5 w-5" /> },
       { key: 'coworkAgentEngine' as TabType, label: i18nService.t('coworkAgentEngine'), icon: <CpuChipIcon className="h-5 w-5" /> },
-      { key: 'model' as TabType,          label: i18nService.t('settingsCustomModel'), icon: <CubeIcon className="h-5 w-5" /> },
+      { key: 'model' as TabType,          label: i18nService.t(isEnterpriseDistribution ? 'settingsApiConfig' : 'settingsCustomModel'), icon: <CubeIcon className="h-5 w-5" /> },
+      { key: 'dataModel' as TabType,      label: i18nService.t('settingsDataModel'), icon: <ArchiveBoxIcon className="h-5 w-5" /> },
+      { key: 'skills' as TabType,         label: i18nService.t('settingsSkillManagement'), icon: <SkillIcon className="h-5 w-5" /> },
       { key: 'im' as TabType,             label: i18nService.t('imBot'),          icon: <ChatBubbleLeftIcon className="h-5 w-5" /> },
       { key: 'browserWebAccess' as TabType, label: i18nService.t('browserWebAccessTab'), icon: <GlobeAltIcon className="h-5 w-5" /> },
       { key: 'email' as TabType,          label: i18nService.t('emailTab'),       icon: <EnvelopeIcon className="h-5 w-5" /> },
@@ -4413,15 +4472,18 @@ const Settings: React.FC<SettingsProps> = ({
       { key: 'help' as TabType,           label: i18nService.t('helpAndFeedback'), icon: <QuestionMarkCircleIcon className="h-5 w-5" /> },
       { key: 'about' as TabType,          label: i18nService.t('about'),          icon: <InformationCircleIcon className="h-5 w-5" /> },
     ];
-    // Filter out tabs hidden by enterprise config
-    // Filter out tabs with 'hide' action in enterprise config
-    // e.g., ui: { "settings.im": "hide" } → hide the 'im' tab
     const ui = enterpriseConfig?.ui;
-    if (ui) {
-      return allTabs.filter(tab => ui[`settings.${tab.key}`] !== 'hide');
-    }
-    return allTabs;
+    return allTabs.filter(tab => (
+      (isEnterpriseDistribution || (tab.key !== 'skills' && tab.key !== 'dataModel'))
+      && ui?.[`settings.${tab.key}`] !== 'hide'
+    ));
   })();
+
+  useEffect(() => {
+    if (!sidebarTabs.some(tab => tab.key === activeTab)) {
+      setActiveTab('general');
+    }
+  }, [activeTab, sidebarTabs]);
 
   const activeTabLabel = useMemo(() => {
     return sidebarTabs.find(t => t.key === activeTab)?.label ?? '';
@@ -4688,6 +4750,7 @@ const Settings: React.FC<SettingsProps> = ({
           <div className="space-y-8">
             {/* Group: General basics */}
             <SettingsGroup title={i18nService.t('settingsGroupBasics')}>
+              {!enterpriseConfig?.language && (
               <SettingsRow>
                 <div className="flex items-center justify-between gap-4">
                   <h4 className={`${SETTINGS_ITEM_TITLE_TEXT} font-medium text-foreground`}>
@@ -4709,7 +4772,8 @@ const Settings: React.FC<SettingsProps> = ({
                     />
                   </div>
                 </div>
-              </SettingsRow>
+                </SettingsRow>
+              )}
 
               <SettingsRow>
                 <SettingsToggleRow
@@ -4965,16 +5029,18 @@ const Settings: React.FC<SettingsProps> = ({
                 />
               </SettingsRow>
 
-              <SettingsRow>
-                <SettingsToggleRow
-                  title={i18nService.t('usageAnalyticsEnabled')}
-                  description={i18nService.t('usageAnalyticsEnabledDescription')}
-                  checked={usageAnalyticsEnabled}
-                  onToggle={() => {
-                    setUsageAnalyticsEnabled((prev) => !prev);
-                  }}
-                />
-              </SettingsRow>
+              {!enterpriseConfig?.disableTelemetry && (
+                <SettingsRow>
+                  <SettingsToggleRow
+                    title={i18nService.t('usageAnalyticsEnabled')}
+                    description={i18nService.t('usageAnalyticsEnabledDescription')}
+                    checked={usageAnalyticsEnabled}
+                    onToggle={() => {
+                      setUsageAnalyticsEnabled((prev) => !prev);
+                    }}
+                  />
+                </SettingsRow>
+              )}
             </SettingsGroup>
           </div>
         );
@@ -5588,6 +5654,15 @@ const Settings: React.FC<SettingsProps> = ({
         );
 
       case 'model':
+        if (isEnterpriseDistribution) {
+          return (
+            <GardyModelConfig
+              baseUrl={providers.openai.baseUrl}
+              apiKey={providers.openai.apiKey}
+              onChange={(field, value) => handleProviderConfigChange(ProviderName.OpenAI, field, value)}
+            />
+          );
+        }
         return (
           <ModelSettingsSection
             providers={providers}
@@ -5749,7 +5824,7 @@ const Settings: React.FC<SettingsProps> = ({
         );
 
       case 'im':
-        return <IMSettings />;
+        return <IMSettings wecomOnly={isEnterpriseDistribution} />;
 
       case 'plugins':
         return (
@@ -5777,8 +5852,8 @@ const Settings: React.FC<SettingsProps> = ({
           <div className="flex min-h-full flex-col items-center pt-6 pb-3">
             {/* Logo & App Name */}
             <img
-              src="logo.png"
-              alt="LobsterAI"
+              src="gardy-mark.svg"
+              alt={appName}
               className="w-16 h-16 mb-3 cursor-pointer select-none"
               onClick={(e) => {
                 if (!e.altKey || !e.shiftKey) return;
@@ -5790,7 +5865,7 @@ const Settings: React.FC<SettingsProps> = ({
                 }
               }}
             />
-            <h3 className="text-lg font-semibold text-foreground">LobsterAI</h3>
+            <h3 className="text-lg font-semibold text-foreground">{appName}</h3>
             <span className="text-xs text-secondary mt-1">v{appVersion}</span>
 
             {/* Info Card */}
@@ -5872,10 +5947,17 @@ const Settings: React.FC<SettingsProps> = ({
               </div>
 
               <p className="mt-5 text-center text-xs text-secondary">
-                {i18nService.t('copyrightHolder')}
+                {isEnterpriseDistribution
+                  ? i18nService.t('gardyCopyrightHolder')
+                  : i18nService.t('copyrightHolder')}
               </p>
               <p className="mt-1 text-center text-xs text-secondary">
-                Copyright &copy; {new Date().getFullYear()} NetEase Youdao. All Rights Reserved.
+                {isEnterpriseDistribution
+                  ? i18nService.t('gardyCopyrightNotice').replace(
+                    '{year}',
+                    String(new Date().getFullYear()),
+                  )
+                  : <>Copyright &copy; {new Date().getFullYear()} NetEase Youdao. All Rights Reserved.</>}
               </p>
             </div>
           </div>
@@ -5890,13 +5972,13 @@ const Settings: React.FC<SettingsProps> = ({
     <Modal
       onClose={guardedClose}
       onEscape={handleEscape}
-      overlayClassName="fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-3 sm:p-4"
-      className="w-[calc(100vw-1.5rem)] min-w-0 sm:w-[85vw] max-w-[1200px]"
+      overlayClassName={`fixed inset-0 z-50 modal-backdrop flex items-center justify-center ${isFullscreen ? 'p-2' : 'p-3 sm:p-4'}`}
+      className={isFullscreen ? 'w-[calc(100vw-1rem)] min-w-0' : 'w-[calc(100vw-1.5rem)] min-w-0 sm:w-[85vw] max-w-[1200px]'}
     >
       <SkinPresentationScope
         enabled
         data-skin-settings="true"
-        className="relative flex h-[min(90vh,calc(100vh-6rem))] w-full min-w-0 rounded-2xl border-border border shadow-modal overflow-hidden modal-content"
+        className={`relative flex w-full min-w-0 rounded-2xl border-border border shadow-modal overflow-hidden modal-content ${isFullscreen ? 'h-[calc(100vh-1rem)]' : 'h-[min(90vh,calc(100vh-6rem))]'}`}
         onClick={handleSettingsClick}
       >
         {/* Left sidebar */}
@@ -5927,12 +6009,25 @@ const Settings: React.FC<SettingsProps> = ({
           {/* Content header */}
           <div className="flex justify-between items-center gap-3 px-6 pt-5 pb-3 shrink-0">
             <h3 className={`min-w-0 truncate ${SETTINGS_PAGE_TITLE_TEXT} font-semibold text-foreground`}>{activeTabLabel}</h3>
-            <button
-              onClick={guardedClose}
-              className="text-secondary hover:text-foreground p-1.5 hover:bg-surface-raised rounded-lg transition-colors"
-            >
-              <XMarkIcon className="h-5 w-5" />
-            </button>
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setIsFullscreen(value => !value)}
+                aria-label={i18nService.t(isFullscreen ? 'settingsRestoreWindow' : 'settingsExpandWindow')}
+                title={i18nService.t(isFullscreen ? 'settingsRestoreWindow' : 'settingsExpandWindow')}
+                className="text-secondary hover:text-foreground p-1.5 hover:bg-surface-raised rounded-lg transition-colors"
+              >
+                {isFullscreen ? <ArrowsPointingInIcon className="h-5 w-5" /> : <ArrowsPointingOutIcon className="h-5 w-5" />}
+              </button>
+              <button
+                type="button"
+                onClick={guardedClose}
+                aria-label={i18nService.t('close')}
+                className="text-secondary hover:text-foreground p-1.5 hover:bg-surface-raised rounded-lg transition-colors"
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
           {noticeMessage && (
@@ -5953,6 +6048,11 @@ const Settings: React.FC<SettingsProps> = ({
             </div>
           )}
 
+          {activeTab === 'skills' || activeTab === 'dataModel' ? (
+            <div className="flex-1 overflow-y-auto px-6 py-4" style={{ scrollbarGutter: 'stable' }}>
+              {activeTab === 'skills' ? <SkillsManager /> : <NlqModelManager />}
+            </div>
+          ) : (
           <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
             {/* Tab content */}
             <div
@@ -5989,6 +6089,7 @@ const Settings: React.FC<SettingsProps> = ({
               </div>
             </div>
           </form>
+          )}
 
         </div>
 

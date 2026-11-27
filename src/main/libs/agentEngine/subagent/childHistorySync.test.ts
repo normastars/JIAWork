@@ -9,10 +9,10 @@ import {
 
 describe('subagent child history sync', () => {
   test('normalizes outbound subagent prompts to the visible user request', () => {
-    const rawOutboundPrompt = `[LobsterAI system instructions]
+    const rawOutboundPrompt = `[GARDY AI Workbench system instructions]
 hidden setup
 
-[Context bridge from previous LobsterAI conversation]
+[Context bridge from previous GARDY AI Workbench conversation]
 previous context
 
 [Current user request]

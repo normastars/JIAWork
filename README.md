@@ -1,179 +1,82 @@
-<div align="center">
+# JIAWork · 嘉迪 AI 工作台
 
-<img src="public/logo.png" alt="LobsterAI logo" width="88" />
+JIAWork 是面向嘉迪业务场景的桌面 AI 工作台，用来处理员工提供的表格、文档和工作记录，并保留任务过程与生成文件。当前代码基于 LobsterAI `2026.11.20`，使用 Electron、React 和 OpenClaw；嘉迪企业配置随应用打包，启动后直接进入中文工作台。
 
-# LobsterAI
+## 主要功能
 
-**The open-source desktop AI agent that does real work on your computer.**
-
-Describe a task in plain language. LobsterAI reads your files, runs tools, drives a browser,<br/>
-edits Office documents, and hands back finished work — at your desk or from your phone.
-
-<p>
-  <a href="https://github.com/netease-youdao/LobsterAI/releases/latest"><img src="https://img.shields.io/github/v/release/netease-youdao/LobsterAI?style=flat-square&label=release&color=FF5A36" alt="Latest release" /></a>
-  <a href="https://github.com/netease-youdao/LobsterAI/stargazers"><img src="https://img.shields.io/github/stars/netease-youdao/LobsterAI?style=flat-square&color=FFB000" alt="GitHub stars" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/netease-youdao/LobsterAI?style=flat-square" alt="MIT license" /></a>
-  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-4493F8?style=flat-square" alt="Platforms: macOS and Windows" />
-  <a href="https://x.com/LobsterAIYoudao"><img src="https://img.shields.io/badge/follow-%40LobsterAIYoudao-000000?style=flat-square&logo=x" alt="Follow LobsterAI on X" /></a>
-  <a href="#community"><img src="https://img.shields.io/badge/WeChat-community-07C160?style=flat-square&logo=wechat&logoColor=white" alt="Join the WeChat community" /></a>
-</p>
-
-**English** · [简体中文](README_zh.md)
-
-<h3>
-  <a href="https://lobsterai.youdao.com/#/download-list">Download</a>
-  &nbsp;·&nbsp;
-  <a href="#quick-start">Quick start</a>
-  &nbsp;·&nbsp;
-  <a href="#features">Features</a>
-  &nbsp;·&nbsp;
-  <a href="#build-from-source">Build from source</a>
-  &nbsp;·&nbsp;
-  <a href="#community">Community</a>
-</h3>
-
-<img src="docs/res/screenshots/hero-en.png" alt="LobsterAI analyzing a spreadsheet and previewing the dashboard it built" width="100%" />
-
-</div>
-
-## Why LobsterAI
-
-Most AI assistants stop at an answer. LobsterAI is built to finish the job.
-
-- **It works where your work lives.** Point it at a folder and it reads spreadsheets, writes documents, runs scripts, and browses the web, asking before anything sensitive.
-- **You see the result, not just a reply.** Web pages, charts, images, videos, PDFs, and Word, Excel, and PowerPoint files open in a side panel, ready to edit or share.
-- **It keeps working when you step away.** Schedule recurring jobs, or message your desktop agent from WeChat, Feishu, DingTalk, Telegram, and more.
-- **It's yours.** MIT-licensed, with sessions stored locally. Sign in to use the built-in models, or bring your own API keys.
-
-Built by [NetEase Youdao](https://www.youdao.com/), LobsterAI is the first open-source desktop-grade agent from a major Chinese tech company.
-
-## Features
-
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <img src="docs/res/screenshots/office-en.png" alt="Editing an Excel workbook inside LobsterAI" />
-      <p><b>Native Office editing</b><br/>Open Word, Excel, and PowerPoint files right in the app. Edit by hand, or let the agent make changes live alongside you.</p>
-    </td>
-    <td width="50%" valign="top">
-      <img src="docs/res/screenshots/kits-en.png" alt="The kits marketplace" />
-      <p><b>Kits, skills, and connectors</b><br/>Install role-based kits for engineering, design, finance, sales, and more, pick individual skills, or connect MCP servers.</p>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-      <img src="docs/res/screenshots/scheduled-tasks-en.png" alt="Scheduled task templates" />
-      <p><b>Scheduled tasks</b><br/>Turn any prompt into a recurring job: morning briefs, end-of-day wrap-ups, weekly reports, and health checks.</p>
-    </td>
-    <td width="50%" valign="top">
-      <img src="docs/res/screenshots/im-bots-en.png" alt="IM bot settings" />
-      <p><b>Message it from anywhere</b><br/>Connect a chat app once, then send tasks to your desktop agent from your phone.</p>
-    </td>
-  </tr>
-</table>
-
-### Everything in the box
-
-| Capability | What you get |
+| 功能 | 当前提供的能力 |
 | --- | --- |
-| **Cowork sessions** | Long-running tasks on local projects with streaming progress, a tool timeline, session forks, and approval prompts before file, shell, or network actions. |
-| **Artifacts and sharing** | Live previews for HTML, SVG, Mermaid, images, video, Markdown, code, PDF, and Office files. Edit images in place and share results as a link. |
-| **Built-in browser** | An in-app browser the agent can drive, with tabs, saved logins, and passkey support, for research and web workflows. |
-| **Computer use** | Let the agent operate desktop apps on Windows x64 and macOS 13 or later. |
-| **Multiple agents** | Create agents with their own identity, model, skills, and working folder, add ready-made experts from the Expert Plaza, and bind agents to chat channels. |
-| **Skills** | Built-in skills for documents, spreadsheets, slides, PDFs, web search, browser automation, image and video generation, stock research, writing, email, and more. See [`SKILLs/`](SKILLs). |
-| **MCP connectors** | Add local or remote MCP servers from the marketplace, sign in with OAuth, and choose which tools each server exposes. |
-| **IM channels** | WeChat, WeCom, DingTalk, Feishu/Lark, QQ, NetEase IM, NetEase Bee, POPO, Telegram, Discord, and email. Multi-instance platforms can route each bot to a different agent. |
-| **Desktop companion** | A floating orb for quick tasks, screenshots, and actions on selected text, such as translating or reading aloud. |
-| **Memory and Dreaming** | Durable memory files, plus optional scheduled "Dreaming" runs that consolidate what the agent learned, so preferences carry across sessions. |
-| **Models** | Built-in models (DeepSeek, GLM, Kimi, Qwen, MiniMax, and more) after sign-in, or your own keys for OpenAI, Anthropic, Gemini, xAI, OpenRouter, Ollama, LM Studio, and any OpenAI-compatible endpoint. |
-| **Library** | Every file your agents create, collected in one place across sessions, both local and shared. |
+| 六个快捷任务 | 表格分析、文档编写、工作总结、库存核对、采购交期跟进、质量异常整理。快捷任务会选择对应专家和技能，并生成可补充的任务说明。 |
+| 三位嘉迪预设专家 | 表格分析专家、文档专家、工作总结专家。每位专家有独立的系统提示词，用户在应用内修改过的提示词会保留。 |
+| 文件与成果 | 处理本地文件，预览生成的文档、表格、图表、网页等成果；任务记录保存在本机。 |
+| 自然语言查数 | 在“嘉迪专家”普通对话中查询本机影子库的 CAC 销售、采购、生产和仓库出入库数据；回答附统计口径。 |
+| 设置 | 配置模型 API 地址和平台 Key，查看查数模型同步状态，管理技能；企业版 IM 设置只展示企业微信。 |
 
-## Things to try
+当前查数库由 CAC 导出文件导入，是截至 2026 年 11 月 11 日的静态数据，不会自动跟随 ERP 更新。部署人员运行一次[CAC 数据导入说明](docs/CAC数据导入与查数.md)中的命令；数据管理员在 JIAWork-Admin 的「数据模型」中发布表、关联和指标，App 在下次查询前自动同步。当前没有库存结存快照，不能用出入库流水冒充库存余额。其他库存、采购和质量任务以用户提供的文件和已确认口径为依据；工作台没有直连实时 CAC ERP、供应商或审批系统。配置细节见[数据模型配置说明](docs/数据模型配置说明.md)。
 
-| Scenario | Example prompt |
-| --- | --- |
-| Build a local tool | "I still track inventory and sales in Excel. Build a local inventory system that records purchases and sales, calculates stock and profit, and opens in my browser." |
-| Analyze local data | "Use `product-growth.xlsx` to build a visual dashboard and summarize the main growth drivers." |
-| Make a deck | "Research the AI agent market and turn the findings into a presentation." |
-| Check a web dashboard | "Open the ads dashboard every morning, check spend and conversion anomalies, and summarize likely causes." |
-| Screen documents | "Turn the resumes in this folder into a screening sheet and shortlist the strongest candidates against the JD." |
-| Run scheduled work | "Every weekday at 9 AM, collect yesterday's AI news and send me a concise digest." |
+## 启动桌面应用
 
-## Quick start
+有安装包时，安装后直接打开 JIAWork。源码运行需要 Node.js `>=24.15.0 <25` 和 npm。在本仓库根目录首次执行：
 
-1. **Install LobsterAI.** Download it from the [official website](https://lobsterai.youdao.com/#/download-list), or get the latest release directly:
-   [macOS (Apple Silicon)](https://github.com/netease-youdao/LobsterAI/releases/latest/download/LobsterAI--mac-arm64.dmg) ·
-   [macOS (Intel)](https://github.com/netease-youdao/LobsterAI/releases/latest/download/LobsterAI--mac-x64.dmg) ·
-   [Windows x64](https://github.com/netease-youdao/LobsterAI/releases/latest/download/LobsterAI--win-x64.exe)
-2. **Choose a model.** Sign in to use the built-in models, or add your own API key under **Settings → Custom Model**.
-3. **Give it a task.** Pick a working folder, describe what you want, and approve actions as it works. Generated files open in the side panel.
-4. **Go further.** Install kits from **Kits · Skills · Connectors**, set up recurring work in **Scheduled Tasks**, or connect a chat app under **Settings → IM Bot**.
-
-## How it works
-
-```mermaid
-flowchart LR
-  subgraph App["LobsterAI desktop app (Electron)"]
-    UI["Renderer<br/>React · Redux · Tailwind<br/>sessions · artifacts · Office editors"]
-    Main["Main process<br/>Cowork sessions · permissions · SQLite<br/>skills · MCP · IM · scheduler"]
-    UI <-->|"preload IPC"| Main
-  end
-  Main <-->|"config sync · events"| Gateway["OpenClaw gateway<br/>bundled agent runtime"]
-  Gateway --> Models["LLM providers"]
-  Gateway --> Tools["Local tools<br/>files · shell · browser<br/>computer use · MCP servers"]
-  Chat["Chat apps<br/>WeChat · Feishu · DingTalk · Telegram …"] <--> Gateway
+```sh
+npm ci
+npm start
 ```
 
-- **Cowork** is LobsterAI's product layer. It owns sessions, messages, permissions, artifacts, agents, and IM bindings, and stores them locally in SQLite.
-- **[OpenClaw](https://github.com/openclaw/openclaw)** is the agent runtime underneath. LobsterAI ships a pinned build, renders its config from app state, and translates its events into the Cowork stream.
-- The renderer is sandboxed with context isolation and talks to the main process only through the preload IPC bridge.
+之后启动只需：
 
-## Build from source
-
-Requirements: Node.js `>=24.15.0 <25`, npm `>=11.17.0 <12`, git, and pnpm.
-
-```bash
-git clone https://github.com/netease-youdao/LobsterAI.git
-cd LobsterAI
-npm install
-
-# First run: fetches the pinned OpenClaw version into ../openclaw, builds the runtime, and starts the app
-npm run electron:dev:openclaw
-
-# Later runs, once the runtime exists
-npm run electron:dev
+```sh
+npm start
 ```
 
-[CONTRIBUTING.md](CONTRIBUTING.md) covers tests, linting, runtime options, packaging installers, and the project layout.
+`npm start` 会准备 OpenClaw 运行时并打开 Electron 窗口；运行时已存在时会复用已有构建。开发服务器使用 `http://localhost:5175`，完整功能在 Electron 窗口中运行。
 
-## Security and privacy
+## 连接 JIAWork-Admin 模型平台
 
-- Sessions, messages, and settings are stored locally in `lobsterai.sqlite` under the app's user data directory. Agent memory and runtime state live alongside it under `openclaw/`.
-- File operations, shell commands, and network access are permission-gated, and the agent asks before it acts.
-- Renderer windows run with context isolation, sandboxing, and no Node.js integration.
+JIAWork 使用 **JIAWork-Admin 签发的平台 API Key** 请求模型。模型服务商提供的**上游 API Key** 只配置在管理平台的渠道里，不填入桌面应用。
 
-## Community
+1. 按 [JIAWork-Admin README](https://github.com/normastars/JIAWork-Admin) 启动管理平台。新安装时先在部署机器打开 `http://127.0.0.1:3001/`，登录 New API 后台创建上游渠道，填写服务商的 API 地址、Key 和可用模型。
+2. 在 JIAWork-Admin 管理页选择渠道、设置允许的模型，并创建平台 API Key。
+3. 打开 JIAWork 的「设置 → API 配置」，填写下表中的 API 地址和**平台签发的 Key**，保存后选择允许范围内的模型。
+4. 在工作台发起一条简单任务；收到模型回复后，到 JIAWork-Admin 的「调用统计」检查这把 Key 的记录。
 
-Join the WeChat group for help, feedback, and release news. You can also follow [@LobsterAIYoudao](https://x.com/LobsterAIYoudao) on X.
+| App 与管理平台的位置 | JIAWork 中填写的 API 地址 |
+| --- | --- |
+| 同一台电脑 | `http://127.0.0.1:3000/v1` |
+| 通过域名访问 | `https://你的域名/v1` |
 
-<img src="docs/res/wechat-group.png" alt="WeChat community QR code" width="180" />
+App 会通过该 Key 获取可用模型和已发布的查数数据模型；SQL Server 查询仍由 App 在本机执行。跨机器部署时，应填写管理平台可访问的域名；`127.0.0.1` 始终指向运行 App 的电脑。
 
-Report bugs and request features through [GitHub Issues](https://github.com/netease-youdao/LobsterAI/issues/new/choose).
+调用链路：`JIAWork → 平台 Key 鉴权 → JIAWork-Admin → 上游渠道 → 模型服务商`。
 
-## Contributing
+## 嘉迪配置与提示词
 
-Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) to set up your environment, and look for [good first issues](https://github.com/netease-youdao/LobsterAI/issues?q=is%3Aissue%20state%3Aopen%20label%3A%22good%20first%20issue%22) to get started.
+- [企业配置](enterprise-configs/gardy/README.md)说明了首页快捷任务、员工侧界面、运行时扩展和数据兼容策略；默认值在 [manifest.json](enterprise-configs/gardy/manifest.json)。
+- 三位专家的默认系统提示词分别位于 [表格分析](resources/gardy-prompts/spreadsheet-analyst.md)、[文档处理](resources/gardy-prompts/document-assistant.md)、[工作总结](resources/gardy-prompts/work-summary-assistant.md)。源文件使用英文指令，但要求专家向员工输出中文；修改源文件后需重新构建应用。
+- 应用内自行修改的专家提示词不会被默认文件覆盖。正式 API Key、员工凭据和企业系统地址不要提交到仓库。
 
-## Star history
+## 开发与打包
 
-<a href="https://www.star-history.com/#netease-youdao/lobsterai&Date">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=netease-youdao/lobsterai&type=Date&theme=dark" />
-    <img src="https://api.star-history.com/svg?repos=netease-youdao/lobsterai&type=Date" alt="Star history chart" width="600" />
-  </picture>
-</a>
+```sh
+npm test                 # Vitest
+npm run build            # Renderer 生产构建
+npm run compile:electron # Electron 主进程与 preload 构建
 
-## License
+npm run dist:mac         # macOS 安装包
+npm run dist:win         # Windows 安装包
+npm run dist:linux       # Linux 安装包
+```
 
-[MIT](LICENSE) © NetEase Youdao
+OpenClaw 是当前唯一的 Agent 运行时。应用会把模型、专家和技能配置同步给 OpenClaw；会话、设置和任务记录保存在本机。更多工程约定见 [AGENTS.md](AGENTS.md)。
+
+## 项目目录
+
+| 路径 | 内容 |
+| --- | --- |
+| `enterprise-configs/gardy/` | 嘉迪工作台的内置企业配置与六个快捷任务 |
+| `resources/gardy-prompts/` | 三位预设专家的默认系统提示词 |
+| `SKILLs/` | 随应用提供的技能 |
+| `src/renderer/` | 工作台界面、设置和成果预览 |
+| `src/main/` | Electron 主进程、数据存储与 OpenClaw 集成 |
+
+本项目基于 [LobsterAI](https://github.com/netease-youdao/LobsterAI) 改造，沿用仓库中的 [MIT 许可证](LICENSE)。

@@ -825,13 +825,6 @@ const MediaModelPicker: React.FC<MediaModelPickerProps> = ({ draftKey, disabled,
     await authService.login();
   };
 
-  const handleSubscribe = async () => {
-    reportMedia(UsageStage.Subscribe);
-    setIsOpen(false);
-    const { getPortalPricingUrl } = await import('../../services/endpoints');
-    await window.electron.shell.openExternal(getPortalPricingUrl());
-  };
-
   const handleEnterpriseRefresh = async () => {
     await authService.refreshQuota();
   };
@@ -1138,8 +1131,6 @@ const MediaModelPicker: React.FC<MediaModelPickerProps> = ({ draftKey, disabled,
         i18nService.t('mediaLoginDesc'),
         i18nService.t('mediaLoginBtn'),
         handleLogin,
-        i18nService.t('mediaLearnMore'),
-        handleSubscribe,
       );
     }
 
@@ -1168,10 +1159,10 @@ const MediaModelPicker: React.FC<MediaModelPickerProps> = ({ draftKey, disabled,
 
     if (!canUseMediaGeneration) {
       return renderPromptPanel(
-        i18nService.t('mediaSubscribeTitle'),
-        i18nService.t('mediaSubscribeDesc'),
-        i18nService.t('mediaSubscribeBtn'),
-        handleSubscribe,
+        i18nService.t('modelSelectorUnavailable'),
+        i18nService.t('modelSelectorUnavailableHelp'),
+        i18nService.t('close'),
+        () => setIsOpen(false),
       );
     }
 

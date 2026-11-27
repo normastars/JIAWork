@@ -34,7 +34,7 @@ const render = (state: RootState, component: React.ReactElement): string => rend
 );
 
 const picker = React.createElement(ModelSelector, { value: null, onChange: () => {} });
-const account = React.createElement(LoginButton, { loggedOutVariant: 'sidebarPromo' });
+const account = React.createElement(LoginButton);
 
 test('cold startup keeps My visible and describes session restoration instead of asking for login', () => {
   const state = snapshot({ isLoading: true, isLoggedIn: false });
@@ -84,9 +84,8 @@ test('confirmed logged out users still get the login entry', () => {
     serverModelLoadStatus: ServerModelLoadStatus.Ready,
   });
   const accountHtml = render(state, account);
-  expect(accountHtml).toContain('立即登录');
-  expect(accountHtml).toContain('登录免费领300积分');
-  expect(accountHtml.indexOf('立即登录')).toBeLessThan(accountHtml.indexOf('登录免费领300积分'));
+  expect(accountHtml).toContain('登录');
+  expect(accountHtml).not.toContain('登录免费领300积分');
   expect(render(state, picker)).toContain('登录使用套餐模型');
 });
 

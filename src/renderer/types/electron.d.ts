@@ -1,15 +1,5 @@
 import type { OpenClawSessionPatch } from '../../common/openclawSession';
 import type { GenerateSessionTitleRequest } from '../../common/sessionTitle';
-import type { AccountMenuMoreBridge } from '../../shared/accountMenuMore/constants';
-import type {
-  ActivityActionResponse,
-  ActivityContextResponse,
-  ActivityHostExecuteActionInput,
-  ActivityHostGetContextInput,
-  ActivityHostGetSlotInput,
-  ActivityResult,
-  ActivitySlotResponse,
-} from '../../shared/activity/constants';
 import type { AgentModelSelectionMode } from '../../shared/agent/constants';
 import type { AgentModelSelection } from '../../shared/agent/modelSelection';
 import type { ExpertCatalog, ExpertUpgradeStatus } from '../../shared/agent/presets';
@@ -90,6 +80,7 @@ import type {
   DecisionModelTestResult,
 } from '../../shared/decisionModel/constants';
 import type { DesktopCompanionBridge } from '../../shared/desktopCompanion/constants';
+import type { EnterpriseWorkbenchConfig } from '../../shared/enterprise/workbench';
 import type { EnterpriseQuotaRequestType } from '../../shared/enterpriseAccount/constants';
 import type {
   EnterpriseAccountContext,
@@ -152,6 +143,7 @@ import type {
   MediaType,
 } from '../../shared/media/defaultPolicy';
 import type { AvailableModelPreset, ModelPresetId, ModelPresetPreference } from '../../shared/modelPresets/constants';
+import type { NlqDatabaseTable, NlqModelState } from '../../shared/nlq/constants';
 import type { OfficeBridges } from '../../shared/office/editors';
 import type {
   OpenClawEngineErrorCode,
@@ -214,7 +206,6 @@ import type {
   SkinGetActiveResponse,
   SkinListResponse,
 } from '../../shared/skin/types';
-import type { SubscriptionTrialBridge } from '../../shared/subscriptionTrial/constants';
 import type { CoworkTempDirPreview } from './cowork';
 interface ApiResponse {
   ok: boolean;
@@ -622,13 +613,6 @@ interface CampaignPresentationData {
   iconUrl?: string | null;
 }
 
-interface CreditsFinalRewardClaimData {
-  campaignCode: string;
-  creditsGranted: number;
-  claimedAt: string;
-  expiresAt: string;
-}
-
 interface ProfileSummaryData {
   id: number;
   nickname: string;
@@ -638,34 +622,6 @@ interface ProfileSummaryData {
   availableResetCount?: number;
   availablePromoSubscriptionCount?: number;
   creditsResetCampaign?: CreditsResetCampaignStatusData;
-}
-
-interface ClientBannerData {
-  id: number;
-  placement: string;
-  activityDescription: string;
-  weight?: number;
-  status?: number;
-  minClientVersion?: string | null;
-  onlineAt?: string;
-  offlineAt?: string;
-  linkUrl: string;
-  imageUrl: string;
-  imageWidth?: number;
-  imageHeight?: number;
-  contentType?: 'image' | 'html';
-  htmlContent?: string | null;
-  audiences?: string | null;
-  displayFrequency?: 'every_launch' | 'daily' | 'once';
-  modalWidth?: number | null;
-  updatedAt?: string;
-}
-
-interface ClientBannerSnapshotData {
-  serverTime: string;
-  nextRefreshAt: string | null;
-  clientVersion: string;
-  banners: ClientBannerData[];
 }
 
 interface HtmlShareResult {
@@ -696,6 +652,11 @@ interface HtmlShareResult {
 interface IElectronAPI {
   messageSpeech: MessageSpeechBridge;
   desktopCompanion: DesktopCompanionBridge;
+  nlq: {
+    status: () => Promise<{ connected: boolean; database: string; message: string }>;
+    schema: () => Promise<NlqDatabaseTable[]>;
+    model: () => Promise<NlqModelState>;
+  };
   platform: string;
   arch: string;
   store: {
@@ -2110,19 +2071,6 @@ interface IElectronAPI {
     }>;
   };
   feedback: FeedbackBridge;
-  subscriptionTrial: SubscriptionTrialBridge;
-  accountMenuMore: AccountMenuMoreBridge;
-  activity: {
-    getSlot: (
-      input: ActivityHostGetSlotInput,
-    ) => Promise<ActivityResult<ActivitySlotResponse>>;
-    getContext: (
-      input: ActivityHostGetContextInput,
-    ) => Promise<ActivityResult<ActivityContextResponse>>;
-    executeAction: (
-      input: ActivityHostExecuteActionInput,
-    ) => Promise<ActivityResult<ActivityActionResponse>>;
-  };
   modelContextWindows: {
     get: (request: import('../../shared/providers/modelContextWindow').ModelContextWindowRequest) => Promise<{ success: boolean; data?: import('../../shared/providers/modelContextWindow').ModelContextWindowState; error?: string }>;
     set: (request: import('../../shared/providers/modelContextWindow').ModelContextWindowRequest, tokens: number | null) => Promise<{ success: boolean; data?: import('../../shared/providers/modelContextWindow').ModelContextWindowState; error?: string }>;
@@ -2249,13 +2197,6 @@ interface IElectronAPI {
       error?: string;
     }>;
     getProfileSummary: () => Promise<{ success: boolean; data?: ProfileSummaryData }>;
-    claimCreditsFinalReward: (campaignCode: string) => Promise<{ success: boolean; data?: CreditsFinalRewardClaimData; error?: string }>;
-    getActiveClientBanner: () => Promise<{ success: boolean; data?: ClientBannerData | null }>;
-    getActiveClientBanners: () => Promise<{ success: boolean; data?: ClientBannerData[] }>;
-    getClientBannerSnapshot: (placement?: string) => Promise<{
-      success: boolean;
-      data?: ClientBannerSnapshotData;
-    }>;
     getPendingCallback: () => Promise<string | null>;
     onCallback: (callback: (data: { code: string }) => void) => () => void;
     onQuotaChanged: (callback: () => void) => () => void;
@@ -2284,6 +2225,10 @@ interface IElectronAPI {
       config: {
         ui?: Record<string, 'hide' | 'disable' | 'readonly'>;
         disableUpdate?: boolean;
+        disableTelemetry?: boolean;
+        autoAcceptPrivacy?: boolean;
+        language?: 'zh' | 'en';
+        workbench?: EnterpriseWorkbenchConfig;
         version: string;
         name: string;
       } | null;

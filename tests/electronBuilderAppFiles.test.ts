@@ -16,6 +16,7 @@ const packageJson = require('../package.json');
 const RUNTIME_DEPENDENCIES: Record<string, string> = {
   '@larksuite/openclaw-lark-tools': 'external in vite.config.ts',
   'better-sqlite3': 'native addon, external in vite.config.ts',
+  mssql: 'SQL Server driver, external in vite.config.ts',
   bufferutil: 'optional ws native addon, external in vite.config.ts',
   'utf-8-validate': 'optional ws native addon, external in vite.config.ts',
   koffi: 'native FFI, plain require() in desktopCompanion/windowsNative.ts',

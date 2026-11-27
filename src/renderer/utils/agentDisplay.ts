@@ -19,6 +19,9 @@ export const isDefaultAgentProfileName = (agent: Pick<AgentDisplaySource, 'id' |
   const normalizedName = agent.name?.trim() ?? '';
   return !normalizedName
     || normalizedName.toLowerCase() === LegacyAgentName.Main
+    || normalizedName.toLowerCase() === LegacyAgentName.LobsterAI
+    || normalizedName.toLowerCase() === LegacyAgentName.GardyWorkbench
+    || normalizedName === LegacyAgentName.GardyAssistant
     || normalizedName === DefaultAgentProfile.Name;
 };
 

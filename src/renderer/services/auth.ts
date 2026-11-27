@@ -53,9 +53,9 @@ import {
 } from '../store/slices/modelSlice';
 import { AuthRecovery } from './authRecovery';
 import { browserLoginSession, BrowserLoginStatus } from './browserLoginSession';
+import { getCreditQuotaSnapshot } from './creditQuotaSnapshot';
 import { i18nService } from './i18n';
 import { LogReporterAction, reportYdAnalyzer } from './logReporter';
-import { getCreditQuotaSnapshot } from './lowCreditPurchaseOffer';
 import {
   clearPendingPublishingConversionAttribution,
   reportPendingPublishingSubscriptionObserved,
@@ -256,7 +256,7 @@ export function mapPricingCatalogTextModelsToServerModels(
     const modelName = readString(model.modelName) || modelId;
     const provider = readString(model.providerLabel)
       || readString(model.provider)
-      || 'LobsterAI';
+      || '嘉迪 AI 工作台';
     const contextWindow = readPositiveNumber(model.contextWindow);
     const costMultiplier = model.limitedFreeActive ? 0 : readPositiveNumber(model.costMultiplier);
     const thinkingConfig = model.supportsThinking === true
@@ -1052,15 +1052,6 @@ class AuthService {
     } catch {
       // ignore
     }
-  }
-
-  async claimCreditsFinalReward(campaignCode: string) {
-    const result = await window.electron.auth.claimCreditsFinalReward(campaignCode);
-    if (!result.success || !result.data) {
-      throw new Error(result.error || 'Claim failed');
-    }
-    await this.refreshQuota({ refreshProfileSummary: true });
-    return result.data;
   }
 
   /**

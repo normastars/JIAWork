@@ -1,0 +1,369 @@
+{
+  "version": 1,
+  "name": "嘉迪 CAC 2026 业务数据模型",
+  "dimensions": {
+    "customer": {
+      "label": "客户编号",
+      "aliases": [
+        "客户"
+      ]
+    },
+    "supplier": {
+      "label": "供应商编号",
+      "aliases": [
+        "供应商"
+      ]
+    },
+    "item_code": {
+      "label": "物料编号",
+      "aliases": [
+        "物料",
+        "物料号",
+        "零件号"
+      ]
+    },
+    "product_code": {
+      "label": "产品编号",
+      "aliases": [
+        "产品",
+        "产品号"
+      ]
+    },
+    "location": {
+      "label": "仓库编号",
+      "aliases": [
+        "仓库",
+        "库位"
+      ]
+    },
+    "unit": {
+      "label": "计量单位",
+      "aliases": [
+        "单位"
+      ]
+    },
+    "sales_order": {
+      "label": "销售单号",
+      "aliases": [
+        "销售合同号"
+      ]
+    },
+    "purchase_order": {
+      "label": "采购单号",
+      "aliases": [
+        "采购订单号"
+      ]
+    },
+    "production_order": {
+      "label": "生产单号",
+      "aliases": [
+        "生产订单号"
+      ]
+    },
+    "stock_document": {
+      "label": "出入库单号",
+      "aliases": [
+        "仓库单号"
+      ]
+    },
+    "stock_type": {
+      "label": "出入库类型",
+      "aliases": [
+        "单据类型"
+      ]
+    },
+    "parent_code": {
+      "label": "BOM父项编号",
+      "aliases": [
+        "父项物料"
+      ]
+    }
+  },
+  "tables": {
+    "so_head": {
+      "name": "dbo.SO_HEAD1",
+      "dateColumn": "INDATE",
+      "dimensions": {
+        "customer": "CUSTOMER",
+        "sales_order": "SO_NUMBER"
+      }
+    },
+    "so_line": {
+      "name": "dbo.SO_LN1",
+      "dimensions": {
+        "item_code": "ITEM_CODE",
+        "sales_order": "INVOICE",
+        "unit": "SHW_UNIT"
+      }
+    },
+    "po_head": {
+      "name": "dbo.PO_HEAD1",
+      "dateColumn": "INDATE",
+      "dimensions": {
+        "supplier": "SUPPLIER",
+        "purchase_order": "PO_NUMBER"
+      }
+    },
+    "po_line": {
+      "name": "dbo.PO_LN1",
+      "dimensions": {
+        "item_code": "ITEM_CODE",
+        "purchase_order": "INVOICE",
+        "unit": "SHW_UNIT"
+      }
+    },
+    "mrl_head": {
+      "name": "dbo.MRL_HD1",
+      "dateColumn": "DATE_FINSH",
+      "dimensions": {
+        "production_order": "MRL_CODE",
+        "product_code": "PRODUCT",
+        "location": "LOCATION",
+        "unit": "SHW_UNIT"
+      }
+    },
+    "material_line": {
+      "name": "dbo.MRLIST1",
+      "dimensions": {
+        "production_order": "MRL_CODE",
+        "item_code": "ITEM_CODE",
+        "location": "LOCATION"
+      }
+    },
+    "bom_line": {
+      "name": "dbo.MO_BOM",
+      "dimensions": {
+        "production_order": "MRL_CODE",
+        "parent_code": "PARENT",
+        "item_code": "ITEM_CODE",
+        "unit": "BOM_UNIT"
+      }
+    },
+    "stock_line": {
+      "name": "dbo.STOCK1",
+      "dateColumn": "INDATE",
+      "dimensions": {
+        "stock_document": "TRX_CODE",
+        "stock_type": "TRX_TYPE",
+        "item_code": "ITEM_CODE",
+        "location": "LOCATION"
+      }
+    },
+    "sales_orders": {
+      "name": "dbo.CAC_SO_ORDERS",
+      "dateColumn": "INDATE",
+      "dimensions": {
+        "customer": "CUSTOMER",
+        "sales_order": "SO_NUMBER"
+      }
+    },
+    "sales_order_lines": {
+      "name": "dbo.CAC_SO_LINES",
+      "dateColumn": "INDATE",
+      "dimensions": {
+        "customer": "CUSTOMER",
+        "sales_order": "INVOICE",
+        "item_code": "ITEM_CODE",
+        "unit": "SHW_UNIT"
+      }
+    },
+    "purchase_orders": {
+      "name": "dbo.CAC_PO_ORDERS",
+      "dateColumn": "INDATE",
+      "dimensions": {
+        "supplier": "SUPPLIER",
+        "purchase_order": "PO_NUMBER"
+      }
+    },
+    "purchase_order_lines": {
+      "name": "dbo.CAC_PO_LINES",
+      "dateColumn": "INDATE",
+      "dimensions": {
+        "supplier": "SUPPLIER",
+        "purchase_order": "INVOICE",
+        "item_code": "ITEM_CODE",
+        "unit": "SHW_UNIT"
+      }
+    },
+    "material_dated": {
+      "name": "dbo.CAC_MATERIAL_DATED",
+      "dateColumn": "DATE_FINSH",
+      "dimensions": {
+        "production_order": "MRL_CODE",
+        "item_code": "ITEM_CODE",
+        "location": "LOCATION"
+      }
+    },
+    "bom_dated": {
+      "name": "dbo.CAC_BOM_DATED",
+      "dateColumn": "DATE_FINSH",
+      "dimensions": {
+        "production_order": "MRL_CODE",
+        "parent_code": "PARENT",
+        "item_code": "ITEM_CODE",
+        "unit": "BOM_UNIT"
+      }
+    }
+  },
+  "relations": {
+    "sales_line_header": {
+      "fromTable": "so_line",
+      "toTable": "so_head",
+      "fromColumn": "INVOICE",
+      "toColumn": "SO_NUMBER",
+      "cardinality": "many_to_one"
+    },
+    "purchase_line_header": {
+      "fromTable": "po_line",
+      "toTable": "po_head",
+      "fromColumn": "INVOICE",
+      "toColumn": "PO_NUMBER",
+      "cardinality": "many_to_one"
+    }
+  },
+  "metrics": {
+    "sales_order_count": {
+      "label": "销售订单数",
+      "table": "sales_orders",
+      "column": "ROW_COUNT",
+      "type": "flow",
+      "unit": "单",
+      "notes": [
+        "按销售主表 INDATE 统计；一个 SO_NUMBER 计一单，包含 SO1 和 SO4 两类单据。"
+      ]
+    },
+    "sales_order_quantity": {
+      "label": "销售订单明细数量",
+      "table": "sales_order_lines",
+      "column": "SHW_QTY",
+      "type": "flow",
+      "unit": "原单位",
+      "notes": [
+        "按销售主表 INDATE 汇总明细数量；必须指定物料编号，返回值的单位以该物料在 SHW_UNIT 中的记录为准。"
+      ],
+      "requiredFilters": [
+        "item_code"
+      ]
+    },
+    "purchase_order_count": {
+      "label": "采购订单数",
+      "table": "purchase_orders",
+      "column": "ROW_COUNT",
+      "type": "flow",
+      "unit": "单",
+      "notes": [
+        "按采购主表 INDATE 统计；一个 PO_NUMBER 计一单。"
+      ]
+    },
+    "purchase_order_amount": {
+      "label": "采购订单金额",
+      "table": "po_head",
+      "column": "TOTAL_AMT",
+      "type": "flow",
+      "unit": "元",
+      "notes": [
+        "按采购主表 INDATE 汇总 TOTAL_AMT；本批样本 CURRENCY 均为 RMB，部分订单金额为 0。"
+      ]
+    },
+    "purchase_order_quantity": {
+      "label": "采购订单明细数量",
+      "table": "purchase_order_lines",
+      "column": "SHW_QTY",
+      "type": "flow",
+      "unit": "原单位",
+      "notes": [
+        "按采购主表 INDATE 汇总明细数量；必须指定物料编号和计量单位。导出样本中有少数物料出现多种单位，不能跨单位相加。"
+      ],
+      "requiredFilters": [
+        "item_code",
+        "unit"
+      ]
+    },
+    "production_product_quantity": {
+      "label": "生产单产品数量",
+      "table": "mrl_head",
+      "column": "SHW_QTY",
+      "type": "flow",
+      "unit": "原单位",
+      "notes": [
+        "按 MRL_HD1.DATE_FINSH 汇总产品数量；必须指定产品编号。DATE_FINSH 的实际业务含义仍需嘉迪确认。"
+      ],
+      "requiredFilters": [
+        "product_code"
+      ]
+    },
+    "production_material_required": {
+      "label": "生产单物料需求量",
+      "table": "material_dated",
+      "column": "REQ_QTY",
+      "type": "flow",
+      "unit": "原单位",
+      "notes": [
+        "按对应生产单的最早 DATE_FINSH 归期；必须指定物料编号。原导出未提供物料行日期，不能解释为领料发生日期。"
+      ],
+      "requiredFilters": [
+        "item_code"
+      ]
+    },
+    "production_material_issued": {
+      "label": "生产单物料已发量",
+      "table": "material_dated",
+      "column": "ISSUED",
+      "type": "flow",
+      "unit": "原单位",
+      "notes": [
+        "按对应生产单的最早 DATE_FINSH 归期；必须指定物料编号。原导出未提供物料行日期，不能解释为领料发生日期。"
+      ],
+      "requiredFilters": [
+        "item_code"
+      ]
+    },
+    "production_material_open": {
+      "label": "生产单物料未发量",
+      "table": "material_dated",
+      "column": "REQ_QTY",
+      "type": "flow",
+      "unit": "原单位",
+      "notes": [
+        "需求量减已发量，按生产单最早 DATE_FINSH 归期；必须指定物料编号，不代表任意历史时点的未发快照。"
+      ],
+      "requiredFilters": [
+        "item_code"
+      ],
+      "subtractColumn": "ISSUED"
+    },
+    "production_bom_line_count": {
+      "label": "生产单 BOM 条目数",
+      "table": "bom_dated",
+      "column": "ROW_COUNT",
+      "type": "flow",
+      "unit": "条",
+      "notes": [
+        "按对应生产单的最早 DATE_FINSH 统计 BOM 明细行；不等于物料需求量。"
+      ]
+    },
+    "stock_net_movement": {
+      "label": "仓库净出入库数量",
+      "table": "stock_line",
+      "column": "QUANTITY",
+      "type": "flow",
+      "unit": "原单位",
+      "notes": [
+        "按 STOCK1.INDATE 汇总带正负号的 QUANTITY；必须指定物料编号。该值是期间净变动，不是库存结存。"
+      ],
+      "requiredFilters": [
+        "item_code"
+      ]
+    },
+    "stock_transaction_amount": {
+      "label": "仓库出入库金额净额",
+      "table": "stock_line",
+      "column": "TOTALAMT",
+      "type": "flow",
+      "unit": "元",
+      "notes": [
+        "按 STOCK1.INDATE 汇总带正负号的 TOTALAMT；是出入库流水净额，不是库存金额余额。"
+      ]
+    }
+  }
+}

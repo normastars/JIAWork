@@ -16,6 +16,7 @@ export const BUNDLED_SKILL_DISPLAY_NAMES: Record<string, LocalizedText> = {
   'daily-trending': { zh: '每日热点', en: 'Daily Trending' },
   'docx': { zh: 'Word 文档处理', en: 'Word Documents' },
   'frontend-design': { zh: '前端页面设计', en: 'Frontend Design' },
+  'gardy-inventory': { zh: '嘉迪库存核对', en: 'GARDY Inventory Reconciliation' },
   'imap-smtp-email': { zh: '邮件收发', en: 'Email (IMAP/SMTP)' },
   'local-tools': { zh: '本地工具', en: 'Local Tools' },
   'pdf': { zh: 'PDF 处理', en: 'PDF Toolkit' },

@@ -1,5 +1,6 @@
 import { ArrowPathIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import type { CoworkBrowserAnnotationMessageBatch } from '@shared/cowork/browserAnnotations';
+import type { EnterpriseWorkbenchConfig } from '@shared/enterprise/workbench';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
@@ -9,16 +10,18 @@ import { COWORK_TEMP_SESSION_ID_PREFIX } from '../../../shared/cowork/constants'
 import { buildCoworkImageAttachmentPreviews } from '../../../shared/cowork/imageAttachments';
 import type { CoworkSelectedTextSnippet } from '../../../shared/cowork/selectedText';
 import { PptCreation } from '../../../shared/pptCreation/constants';
-import startupCreditEntryGiftUrl from '../../assets/startup-credit-entry-gift.svg';
 import { EnterpriseQuotaPrompt } from '../../features/enterpriseAccount/components/EnterpriseQuotaPrompt';
 import { refreshEnterpriseAccountContext } from '../../features/enterpriseAccount/context';
-import {
-  selectEnterpriseAccountContext,
-  selectIsEnterpriseAccount,
-} from '../../features/enterpriseAccount/selectors';
+import { selectEnterpriseAccountContext } from '../../features/enterpriseAccount/selectors';
 import { agentService } from '../../services/agent';
 import { coworkService } from '../../services/cowork';
 import { buildCoworkCapabilitySelection } from '../../services/coworkCapabilitySelection';
+import {
+  type LocalizedEnterpriseWorkbenchAction,
+  localizeEnterpriseWorkbench,
+  resolveEnterpriseTaskAgentId,
+  resolveEnterpriseTaskSkillIds,
+} from '../../services/enterpriseWorkbench';
 import { i18nService } from '../../services/i18n';
 import { quickActionService } from '../../services/quickAction';
 import { RootState, store } from '../../store';
@@ -42,8 +45,6 @@ import {
 } from '../../types/cowork';
 import type { MediaAttachmentRef } from '../../types/mediaGeneration';
 import { applyOptimisticGoalCommand } from '../../utils/goalCommand';
-import CreditsResetCampaignFloat from '../CreditsResetCampaignFloat';
-import { DailyCheckInHeaderEntry } from '../DailyCheckInActivity';
 import ComposeIcon from '../icons/ComposeIcon';
 import SidebarToggleIcon from '../icons/SidebarToggleIcon';
 import HomeImageCreation from '../imageCreation/HomeImageCreation';
@@ -54,10 +55,6 @@ import type { SettingsOpenOptions } from '../Settings';
 import HomeSkinEmblem from '../skin/HomeSkinEmblem';
 import SkinAmbientEffects from '../skin/SkinAmbientEffects';
 import SkinBackdrop, { SkinBackdropVariant } from '../skin/SkinBackdrop';
-import {
-  openStartupCreditCampaign,
-  useStartupCreditCampaignEntry,
-} from '../startupCreditCampaignBridge';
 import { MAC_TRAFFIC_LIGHT_INSET_CLASS } from '../window/windowZoom';
 import { CoworkUiEvent } from './constants';
 import CoworkPromptInput, { type CoworkPromptInputRef } from './CoworkPromptInput';
@@ -69,6 +66,7 @@ import {
   isOpenClawReadyForSession,
   resolveCoworkStartBlock,
 } from './coworkStartRequest';
+import EnterpriseWorkbenchTasks from './EnterpriseWorkbenchTasks';
 import { reportPromptTemplateAction } from './promptAnalytics';
 import SessionSwipeNavigator from './SessionSwipeNavigator';
 import { buildCoworkContinuationSystemPrompt } from './skillSystemPrompt';
@@ -95,9 +93,11 @@ const logCoworkViewModel = (message: string, level: 'debug' | 'warn' = 'debug'):
 };
 
 export interface CoworkViewProps {
+  enterpriseWorkbench?: EnterpriseWorkbenchConfig;
   onRequestAppSettings?: (options?: SettingsOpenOptions) => void;
   onShowSkills?: () => void;
   onShowKits?: () => void;
+  showVoiceInput?: boolean;
   isSidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
   onNewChat?: () => void;
@@ -108,9 +108,11 @@ export interface CoworkViewProps {
 }
 
 const CoworkView: React.FC<CoworkViewProps> = ({
+  enterpriseWorkbench,
   onRequestAppSettings,
   onShowSkills,
   onShowKits,
+  showVoiceInput = true,
   isSidebarCollapsed,
   onToggleSidebar,
   onNewChat,
@@ -142,12 +144,12 @@ const CoworkView: React.FC<CoworkViewProps> = ({
   const promptInputRef = useRef<CoworkPromptInputRef>(null);
 
   const currentSession = useSelector(selectCurrentSession);
+  const agents = useSelector((state: RootState) => state.agent.agents);
   const isHomeView = !currentSession;
   const sessionNavigationTargetId = useSelector(selectSessionNavigationTargetId);
   const isStreaming = useSelector(selectIsStreaming);
   const isLoggedIn = useSelector((state: RootState) => state.auth.isLoggedIn);
   const enterpriseAccountContext = useSelector(selectEnterpriseAccountContext);
-  const isEnterpriseAccount = useSelector(selectIsEnterpriseAccount);
   const enterpriseAccountId = enterpriseAccountContext?.enterpriseId;
   const hasEnterpriseAccount = enterpriseAccountContext !== null;
   const currentSessionIdRef = useRef<string | null>(null);
@@ -181,8 +183,12 @@ const CoworkView: React.FC<CoworkViewProps> = ({
   const marketplaceKits = useSelector((state: RootState) => state.kit.marketplaceKits);
   const quickActions = useSelector((state: RootState) => state.quickAction.actions);
   const selectedActionId = useSelector((state: RootState) => state.quickAction.selectedActionId);
-  const startupCreditEntry = useStartupCreditCampaignEntry();
   const shouldPresentConversation = Boolean(currentSession || sessionNavigationTargetId);
+  const currentLanguage = i18nService.getLanguage();
+  const localizedEnterpriseWorkbench = React.useMemo(
+    () => localizeEnterpriseWorkbench(enterpriseWorkbench, currentLanguage),
+    [currentLanguage, enterpriseWorkbench],
+  );
   const homeDraftCollaborationMode = useSelector((state: RootState) => (
     state.cowork.draftCollaborationModes.__home__ || CoworkCollaborationMode.Default
   ));
@@ -763,6 +769,17 @@ const CoworkView: React.FC<CoworkViewProps> = ({
     promptInputRef.current?.focus();
   };
 
+  const handleEnterpriseTaskSelect = (action: LocalizedEnterpriseWorkbenchAction) => {
+    dispatch(clearSelection());
+    const targetAgentId = resolveEnterpriseTaskAgentId(action.agentId, agents);
+    if (targetAgentId && targetAgentId !== currentAgentId) {
+      agentService.switchAgent(targetAgentId);
+    }
+    dispatch(setActiveSkillIds(resolveEnterpriseTaskSkillIds(action.skillId, skills)));
+    promptInputRef.current?.setValue(action.prompt, 'template');
+    promptInputRef.current?.focus();
+  };
+
   useEffect(() => {
     const handleNewSession = () => {
       // Only clear when already on home (no session) — preserve __home__ draft when returning from a session
@@ -846,28 +863,6 @@ const CoworkView: React.FC<CoworkViewProps> = ({
         )}
       </div>
       <div className="non-draggable flex items-center">
-        {!isEnterpriseAccount && startupCreditEntry.available && (
-          <button
-            type="button"
-            onClick={() => openStartupCreditCampaign()}
-            className="mr-2 inline-flex h-8 max-w-[240px] items-center gap-2 rounded-full border border-[#F0B58E] bg-[#FFF7F0] px-3 text-xs font-medium text-[#7C351C] shadow-[0_3px_12px_rgba(235,94,40,0.16)] transition-colors hover:border-[#E89C6C] hover:bg-[#FFEBDD] dark:border-[#704530] dark:bg-[#352A25] dark:text-[#F5C4A5] dark:shadow-[0_3px_14px_rgba(0,0,0,0.32)] dark:hover:bg-[#403029]"
-          >
-            <img
-              src={startupCreditEntryGiftUrl}
-              alt=""
-              aria-hidden="true"
-              className="startup-credit-entry-gift h-5 w-5 shrink-0"
-            />
-            <span className="truncate">
-              {startupCreditEntry.label || i18nService.t('startupCreditMenuEntry')}
-            </span>
-          </button>
-        )}
-        <DailyCheckInHeaderEntry
-          enabled={!isEnterpriseAccount}
-          suppressed={!startupCreditEntry.resolved
-            || startupCreditEntry.available}
-        />
       </div>
     </div>
   );
@@ -931,8 +926,9 @@ const CoworkView: React.FC<CoworkViewProps> = ({
         <div className="relative z-10 flex-1 flex flex-col h-full">
           {engineStatusBanner}
           <CoworkSessionDetail
-            onManageSkills={() => onShowSkills?.()}
-            onManageKits={() => onShowKits?.()}
+            onManageSkills={onShowSkills}
+            onManageKits={onShowKits}
+            showVoiceInput={showVoiceInput}
             onContinue={handleContinueSession}
             onStop={handleStopSession}
             isSidebarCollapsed={isSidebarCollapsed}
@@ -971,13 +967,13 @@ const CoworkView: React.FC<CoworkViewProps> = ({
                   className="mt-4 text-2xl font-semibold leading-[var(--lobster-leading-2xl)] tracking-normal text-foreground animate-fade-in-up"
                   style={{ animationDelay: '70ms', animationFillMode: 'both' }}
                 >
-                  {i18nService.t(resolveHomeGreetingKey())}
+                  {localizedEnterpriseWorkbench?.title || i18nService.t(resolveHomeGreetingKey())}
                 </h2>
                 <p
                   className="mt-1.5 text-sm font-normal leading-[var(--lobster-leading-sm)] text-secondary animate-fade-in-up"
                   style={{ animationDelay: '120ms', animationFillMode: 'both' }}
                 >
-                  {i18nService.t('coworkHomeTagline')}
+                  {localizedEnterpriseWorkbench?.tagline || i18nService.t('coworkHomeTagline')}
                 </p>
               </div>
 
@@ -1002,8 +998,9 @@ const CoworkView: React.FC<CoworkViewProps> = ({
                   showFolderSelector={true}
                   showModelSelector={true}
                   showAgentSelector={true}
-                  onManageSkills={() => onShowSkills?.()}
-                  onManageKits={() => onShowKits?.()}
+                  onManageSkills={onShowSkills}
+                  onManageKits={onShowKits}
+                  showVoiceInput={showVoiceInput}
                   onGoalCommand={handleStartGoalSession}
                 />
                 <EnterpriseQuotaPrompt
@@ -1016,7 +1013,12 @@ const CoworkView: React.FC<CoworkViewProps> = ({
                   (prompt panel, PPT gallery, and image examples) anchor to this
                   block and hang below it without taking part in the vertical
                   centering. */}
-              <div
+              {localizedEnterpriseWorkbench?.quickActions.length ? (
+                <EnterpriseWorkbenchTasks
+                  actions={localizedEnterpriseWorkbench.quickActions}
+                  onSelect={handleEnterpriseTaskSelect}
+                />
+              ) : <div
                 className="relative z-0 mt-8 flex w-full max-w-3xl flex-col items-center animate-fade-in-up"
                 style={{ animationDelay: '260ms', animationFillMode: 'both' }}
               >
@@ -1043,8 +1045,7 @@ const CoworkView: React.FC<CoworkViewProps> = ({
                     )}
                   </HomePptCreation>
                 </HomeImageCreation>
-                <CreditsResetCampaignFloat />
-              </div>
+              </div>}
 
               <div aria-hidden="true" className="w-full min-h-[24px] flex-[3_0_0px]" />
             </div>

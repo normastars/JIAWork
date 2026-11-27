@@ -1,5 +1,4 @@
 import { AuthSubscriptionStatus } from '@shared/auth/constants';
-import type { SubscriptionTrialState } from '@shared/subscriptionTrial/constants';
 
 import type {
   CreditItem,
@@ -196,14 +195,4 @@ export function getFinalRewards(
       ? [status.freeCreditsReward]
       : [];
   return [...rewards].sort((a, b) => a.claimDeadline.localeCompare(b.claimDeadline));
-}
-
-// Ops can hide the entry through the server flag; older servers omit it, so a
-// missing value stays hidden. Logged-out users see it to be drawn into login.
-export function isPennyActivityMenuEntryVisible(
-  state: Pick<SubscriptionTrialState, 'clientMenuEntryVisible' | 'eligible'> | null,
-  input: { isLoggedIn: boolean; isEnterprise: boolean },
-): boolean {
-  if (input.isEnterprise || state?.clientMenuEntryVisible !== true) return false;
-  return !input.isLoggedIn || state.eligible === true;
 }

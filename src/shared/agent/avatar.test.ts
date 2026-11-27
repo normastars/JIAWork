@@ -32,6 +32,7 @@ describe('agent avatar icon encoding', () => {
 
   test('exposes the default svg avatar icon', () => {
     expect(parseAgentAvatarIcon(DefaultAgentAvatarIcon)).toEqual(DefaultAgentAvatar);
+    expect(DefaultAgentAvatar.svg).toBe(AgentAvatarSvg.Brain);
   });
 
   test('does not parse legacy emoji icons', () => {

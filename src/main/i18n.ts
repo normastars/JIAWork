@@ -8,7 +8,7 @@
  * Usage:
  *   import { t, setLanguage } from './i18n';
  *   setLanguage('en');
- *   const label = t('trayShowWindow'); // "Open LobsterAI"
+ *   const label = t('trayShowWindow'); // "Open GARDY AI Workbench"
  *   const msg = t('imMissingCredentials', { fields: 'appId, appSecret' });
  */
 
@@ -31,6 +31,10 @@ const translations: Record<LanguageType, Record<string, string>> = {
     modelPresetSessionBusy: '请等待当前回复结束后再切换模型。',
     modelPresetModelMismatch: '实际模型与所选模型不一致，请重新选择。',
     modelPresetAccountChanged: '账号已切换，请重新选择模型。',
+    nlqRequiredFilterInvalid: '指标 {metric} 的必填筛选维度格式不正确',
+    nlqRequiredFilterUnknown: '指标 {metric} 的必填筛选维度不存在',
+    nlqRequiredFilterUnavailable: '指标 {metric} 的必填筛选维度不属于该指标',
+    nlqRequiredFilterMissing: '指标“{metric}”必须指定{dimension}筛选条件',
 
     ...desktopCompanionTranslations.zh,
     ...mediaTranslations.zh,
@@ -56,10 +60,10 @@ const translations: Record<LanguageType, Record<string, string>> = {
     dshPlanProviderName: '套餐',
 
     // Tray menu
-    trayShowWindow: '打开 LobsterAI',
+    trayShowWindow: '打开嘉迪 AI 工作台',
     trayNewTask: '新建任务',
     trayViewCompletedTask: '查看完成的任务',
-    trayCompletedTaskTooltip: 'LobsterAI - {count} 个任务已完成',
+    trayCompletedTaskTooltip: '嘉迪 AI 工作台 - {count} 个任务已完成',
     traySettings: '设置',
     trayQuit: '退出',
 
@@ -73,8 +77,8 @@ const translations: Record<LanguageType, Record<string, string>> = {
     taskCompletionNotificationBody: '有任务已完成，点击查看结果',
     taskCompletionOverlayDescription: '有任务已完成',
     permissionNotificationTitle: '等待你的确认',
-    permissionNotificationBody: 'Agent 请求执行 {toolName}，等待你的确认',
-    permissionNotificationBodyGeneric: 'Agent 请求执行操作，等待你的确认',
+    permissionNotificationBody: '助手请求执行 {toolName}，等待你的确认',
+    permissionNotificationBodyGeneric: '助手请求执行操作，等待你的确认',
     questionNotificationTitle: '等待你的回答',
     questionNotificationBody: '需要你回答问题后才能继续',
     browserCredentialApprovalHeader: '保存的登录信息',
@@ -164,7 +168,9 @@ const translations: Record<LanguageType, Record<string, string>> = {
       '本次消息过大，请减少附件、压缩图片或拆分提交。（单次整体需小于 30MB）',
     coworkErrorCouldNotProcessPdf: '无法处理 PDF 文件。',
     coworkErrorModelNotFound: '请求的模型不存在或不可用。',
-    coworkGatewaySessionSyncTimeout: 'OpenClaw 引擎响应缓慢，消息尚未发送。请等待 1~2 分钟后重新发送；若频繁出现，请检查系统内存与磁盘占用，并将 LobsterAI 加入杀毒软件白名单。',
+    coworkErrorToolCallingUnsupported: '当前模型不支持任务所需的工具调用，请切换为支持工具调用的模型。',
+    coworkErrorProviderRequestRejected: '模型服务拒绝了请求格式或工具参数，请检查模型能力与配置后重试。',
+    coworkGatewaySessionSyncTimeout: 'AI 引擎响应缓慢，消息尚未发送。请等待 1~2 分钟后重新发送；若频繁出现，请检查系统内存与磁盘占用，并将嘉迪 AI 工作台加入杀毒软件白名单。',
     coworkErrorTranscriptOversized: '该任务的历史记录过大。为保护 AI 引擎，本次消息未发送；请新建任务继续，原任务记录仍会保留。',
     coworkErrorGatewayHeapOutOfMemory: '本地 AI 引擎内存不足并已自动重启。当前任务可能过大，请等待恢复后在新任务中继续。',
     coworkErrorWorkspaceAliasRepointed: 'AI 引擎无法确认工作区目录：它被移动过，或被替换成了指向其他位置的链接，本次消息未发送。请恢复原来的目录或链接后重试；如果问题持续，请联系客服并附上日志。',
@@ -248,13 +254,13 @@ const translations: Record<LanguageType, Record<string, string>> = {
     enterpriseMediaQuotaUnavailable: '当前团队的媒体生成额度暂不可用。',
 
     // Data migration dialogs
-    dataMigrationBackupDialogTitle: '备份 LobsterAI 数据',
-    dataMigrationRestoreDialogTitle: '导入 LobsterAI 数据备份',
-    dataMigrationBackupArchiveFilter: 'LobsterAI 备份包',
+    dataMigrationBackupDialogTitle: '备份嘉迪 AI 工作台数据',
+    dataMigrationRestoreDialogTitle: '导入嘉迪 AI 工作台数据备份',
+    dataMigrationBackupArchiveFilter: '嘉迪 AI 工作台备份包',
     dataMigrationAllFilesFilter: '所有文件',
     dataMigrationBackupBlockedByActiveWorkloads:
-      '当前有正在运行的 Agent 或定时任务，请停止或等待任务完成后再备份。',
-    dataMigrationRestoreProgressTitle: '正在导入 LobsterAI 数据',
+      '当前有正在运行的助手任务或定时任务，请停止或等待任务完成后再备份。',
+    dataMigrationRestoreProgressTitle: '正在导入嘉迪 AI 工作台数据',
     dataMigrationRestoreProgressDesc: '正在恢复备份并校验数据，完成后应用会自动重启。',
     dataMigrationRestoreProgressWarning: '请不要关闭应用或重启电脑，否则可能中断本次数据迁移。',
 
@@ -394,8 +400,8 @@ const translations: Record<LanguageType, Record<string, string>> = {
     emailTransportMode: '传输模式',
     emailTransportImap: 'IMAP/SMTP（传统模式）',
     emailTransportWs: 'WebSocket（安全模式，无需密码）',
-    emailAgentBinding: '绑定 Agent',
-    emailAgentBindingHint: '该邮箱的所有邮件对话将路由到选定的 Agent',
+    emailAgentBinding: '绑定助手',
+    emailAgentBindingHint: '该邮箱的所有邮件对话将路由到选定的助手',
     emailAllowFrom: '允许的发件人（白名单）',
     emailAllowFromPlaceholder: 'user@example.com\n*.trusted-domain.com\n*@company.com',
     emailAllowFromHint: '支持通配符，每行一个。留空表示接受所有发件人。',
@@ -414,11 +420,11 @@ const translations: Record<LanguageType, Record<string, string>> = {
     emailReplyTo: '回复范围',
     emailReplyToSender: '仅回复发件人',
     emailReplyToAll: '回复发件人 + 所有收件人',
-    emailA2aConfig: 'Agent-to-Agent 配置',
+    emailA2aConfig: '助手协作配置',
     emailA2aEnabled: '启用 A2A',
-    emailA2aAgentDomains: 'Agent 域名',
+    emailA2aAgentDomains: '助手域名',
     emailA2aAgentDomainsPlaceholder: 'agents.example.com',
-    emailA2aAgentDomainsHint: '允许进行 Agent 协作的域名，每行一个',
+    emailA2aAgentDomainsHint: '允许进行助手协作的域名，每行一个',
     emailA2aMaxTurns: 'A2A最大往返次数',
     emailConnectivityFailAlert: '连通性测试失败，请检查配置',
     emailConnected: '已连接',
@@ -457,6 +463,10 @@ const translations: Record<LanguageType, Record<string, string>> = {
     modelPresetSessionBusy: 'Wait for the current reply to finish before switching models.',
     modelPresetModelMismatch: 'The resolved model differs from your selection. Please select again.',
     modelPresetAccountChanged: 'The account changed. Please select a model again.',
+    nlqRequiredFilterInvalid: 'The required filter dimensions for metric {metric} are invalid.',
+    nlqRequiredFilterUnknown: 'A required filter dimension for metric {metric} does not exist.',
+    nlqRequiredFilterUnavailable: 'A required filter dimension for metric {metric} is not available on that metric.',
+    nlqRequiredFilterMissing: 'Metric “{metric}” requires a {dimension} filter.',
 
     ...desktopCompanionTranslations.en,
     ...mediaTranslations.en,
@@ -482,10 +492,10 @@ const translations: Record<LanguageType, Record<string, string>> = {
     dshPlanProviderName: 'Plan',
 
     // Tray menu
-    trayShowWindow: 'Open LobsterAI',
+    trayShowWindow: 'Open GARDY AI Workbench',
     trayNewTask: 'New Task',
     trayViewCompletedTask: 'View Completed Task',
-    trayCompletedTaskTooltip: 'LobsterAI - {count} completed task(s)',
+    trayCompletedTaskTooltip: 'GARDY AI Workbench - {count} completed task(s)',
     traySettings: 'Settings',
     trayQuit: 'Quit',
 
@@ -601,6 +611,8 @@ const translations: Record<LanguageType, Record<string, string>> = {
       'This message is too large. Reduce attachments, compress images, or split it up. (Keep each message under about 30 MB.)',
     coworkErrorCouldNotProcessPdf: 'Unable to process the PDF file.',
     coworkErrorModelNotFound: 'The requested model does not exist or is unavailable.',
+    coworkErrorToolCallingUnsupported: 'This model does not support the tool calls required by the task. Switch to a model that supports tools.',
+    coworkErrorProviderRequestRejected: 'The model service rejected the request format or tool parameters. Check the model capabilities and configuration, then retry.',
     coworkGatewaySessionSyncTimeout: 'The OpenClaw engine is responding slowly and your message has not been sent. Please wait a minute or two and resend. If this happens frequently, check system memory and disk usage, and add LobsterAI to your antivirus allowlist.',
     coworkErrorTranscriptOversized: 'This task history is too large. The message was not sent to protect the AI engine. Continue in a new task; the original task will be preserved.',
     coworkErrorGatewayHeapOutOfMemory: 'The local AI engine ran out of memory and is restarting automatically. This task may be too large; wait for recovery and continue in a new task.',
@@ -693,15 +705,15 @@ const translations: Record<LanguageType, Record<string, string>> = {
     enterpriseMediaQuotaUnavailable: 'Media generation quota is unavailable for this team.',
 
     // Data migration dialogs
-    dataMigrationBackupDialogTitle: 'Back Up LobsterAI Data',
-    dataMigrationRestoreDialogTitle: 'Import LobsterAI Data Backup',
-    dataMigrationBackupArchiveFilter: 'LobsterAI Backup',
+    dataMigrationBackupDialogTitle: 'Back Up GARDY AI Workbench Data',
+    dataMigrationRestoreDialogTitle: 'Import GARDY AI Workbench Data Backup',
+    dataMigrationBackupArchiveFilter: 'GARDY AI Workbench Backup',
     dataMigrationAllFilesFilter: 'All Files',
     dataMigrationBackupBlockedByActiveWorkloads:
       'An agent or scheduled task is still running. Stop it or wait for it to finish before backing up.',
-    dataMigrationRestoreProgressTitle: 'Importing LobsterAI data',
+    dataMigrationRestoreProgressTitle: 'Importing GARDY AI Workbench data',
     dataMigrationRestoreProgressDesc:
-      'Restoring the backup and validating data. LobsterAI will restart automatically when finished.',
+      'Restoring the backup and validating data. GARDY AI Workbench will restart automatically when finished.',
     dataMigrationRestoreProgressWarning:
       'Do not close the app or restart the computer, or the migration may be interrupted.',
 

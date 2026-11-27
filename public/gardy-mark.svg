@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title">
+  <title id="title">嘉迪 AI 工作台</title>
+  <defs>
+    <linearGradient id="gardy-gradient" x1="12" y1="8" x2="84" y2="88" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563EB" />
+      <stop offset="1" stop-color="#4F46E5" />
+    </linearGradient>
+  </defs>
+  <rect width="96" height="96" rx="24" fill="url(#gardy-gradient)" />
+  <path
+    d="M70 35C65 27 57 23 48 23C33 23 22 34 22 49C22 64 33 75 48 75C58 75 66 71 72 64V49H50"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="9"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>
