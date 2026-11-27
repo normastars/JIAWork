@@ -1,0 +1,143 @@
+{
+  "version": "1.0.0",
+  "name": "嘉迪 AI 工作台",
+  "language": "zh",
+  "ui": {
+    "login": "hide",
+    "sites": "hide",
+    "kits": "hide",
+    "skills": "hide",
+    "mcp": "hide",
+    "settings.coworkAgentEngine": "hide",
+    "settings.email": "hide",
+    "settings.coworkMemory": "hide",
+    "settings.coworkDreaming": "hide",
+    "settings.plugins": "hide",
+    "settings.shortcuts": "hide",
+    "settings.about": "hide"
+  },
+  "disableUpdate": true,
+  "disableTelemetry": true,
+  "autoAcceptPrivacy": true,
+  "sync": {
+    "openclaw": false,
+    "skills": false,
+    "agents": false,
+    "mcp": false,
+    "plugins": false
+  },
+  "workbench": {
+    "title": {
+      "zh": "嘉迪 AI 工作台",
+      "en": "GARDY AI Workbench"
+    },
+    "tagline": {
+      "zh": "处理表格、文档与工作汇报，从一个任务开始",
+      "en": "Analyze spreadsheets, prepare documents, and create work reports"
+    },
+    "quickActions": [
+      {
+        "id": "gardy-spreadsheet-analysis",
+        "label": {
+          "zh": "表格分析",
+          "en": "Spreadsheet Analysis"
+        },
+        "description": {
+          "zh": "汇总 Excel 数据，检查异常并生成图表和结论",
+          "en": "Summarize Excel data, flag anomalies, and produce charts and findings"
+        },
+        "prompt": {
+          "zh": "请分析我提供的 Excel 文件。开始前先确认统计范围、字段含义和输出要求；随后检查缺失值与异常值，完成可复核的汇总计算，生成关键图表，并将结论、数据口径和异常项整理成报告。如果缺少必要字段，请明确列出需要补充的信息。",
+          "en": "Analyze the Excel file I provide. First confirm the reporting scope, field definitions, and expected output. Then check missing and anomalous values, produce verifiable summaries and key charts, and organize the findings, calculation scope, and exceptions in a report. Clearly list any required information that is missing."
+        },
+        "agentId": "gardy-spreadsheet-analyst",
+        "skillId": "xlsx"
+      },
+      {
+        "id": "gardy-document-drafting",
+        "label": {
+          "zh": "文档编写",
+          "en": "Document Drafting"
+        },
+        "description": {
+          "zh": "根据材料生成结构清晰、可直接修改的办公文档",
+          "en": "Turn source material into a clear, editable business document"
+        },
+        "prompt": {
+          "zh": "请根据我提供的材料编写一份办公文档。先确认文档用途、读者、格式和必须包含的信息；保持事实与原始材料一致，区分已确认信息和待补充信息，使用清晰的标题与表格组织内容，并生成可继续编辑的 Word 文档。",
+          "en": "Create a business document from the material I provide. First confirm its purpose, audience, format, and required information. Keep facts aligned with the sources, distinguish confirmed facts from missing information, structure the content with clear headings and tables, and produce an editable Word document."
+        },
+        "agentId": "gardy-document-assistant",
+        "skillId": "docx"
+      },
+      {
+        "id": "gardy-work-summary",
+        "label": {
+          "zh": "工作总结",
+          "en": "Work Summary"
+        },
+        "description": {
+          "zh": "把工作记录整理成日报、周报或管理层汇报",
+          "en": "Turn work notes into a daily, weekly, or management report"
+        },
+        "prompt": {
+          "zh": "请把我提供的工作记录整理成一份工作总结。先询问总结周期和阅读对象；按成果、关键数据、问题与风险、需要协调的事项和下一步计划组织内容。不要补造数据，对无法确认的信息进行标注，并生成一份简洁专业、便于管理层阅读的 Word 文档。",
+          "en": "Turn my work notes into a work summary. First ask for the reporting period and audience. Organize it by outcomes, key metrics, issues and risks, coordination needs, and next steps. Do not invent data; mark anything that cannot be verified, and generate a concise, professional Word document for management readers."
+        },
+        "agentId": "gardy-work-summary-assistant",
+        "skillId": "docx"
+      },
+      {
+        "id": "gardy-inventory-reconciliation",
+        "label": {
+          "zh": "库存核对",
+          "en": "Inventory Reconciliation"
+        },
+        "description": {
+          "zh": "核对账面与盘点数据，列出差异、重复及待确认项",
+          "en": "Compare book and count records, and list differences and exceptions"
+        },
+        "prompt": {
+          "zh": "请使用已启用的 gardy-inventory 技能核对我提供的库存台账、盘点表或 CAC ERP 导出文件。先确认文件与工作表、数据时点、零件号、批次、仓库、数量字段、单位及匹配规则；缺少影响结果的口径时先询问。按技能说明运行内置核对脚本，不要临时重写计算程序；复核分项与总计，保留零件号前导零，不擅自去重或修改原文件。分别列出匹配记录、数量差异、无对应记录、完全重复行和待确认项，交付可追溯的差异清单。无对应记录不等于确认零库存；结果仅供人工核对，不建议直接接受差异、调账或认定责任。只依据提供的文件分析，不声称访问实时 ERP。",
+          "en": "Use the enabled gardy-inventory skill to reconcile the inventory ledger, physical count sheet, or CAC ERP exports I provide. Confirm files, sheets, snapshot times, part numbers, batches, warehouses, quantity fields, units, and matching rules; ask when a missing rule would change the result. Run the bundled reconciliation script described by the skill instead of rewriting the calculation. Verify subtotals and grand totals, preserve leading zeroes, and leave source files untouched. Deliver a traceable report of matched records, differences, unmatched records, exact duplicates, and open questions. An unmatched record is not confirmed zero stock. Results require human verification; do not recommend directly accepting differences, posting stock adjustments, or assigning responsibility. Do not claim live ERP access."
+        },
+        "agentId": "gardy-spreadsheet-analyst",
+        "skillId": "gardy-inventory"
+      },
+      {
+        "id": "gardy-purchase-delivery",
+        "label": {
+          "zh": "采购交期跟进",
+          "en": "Purchase Delivery Follow-up"
+        },
+        "description": {
+          "zh": "比对订单、供应商确认和收货记录，整理待跟进清单",
+          "en": "Compare orders, supplier confirmations, and receipts"
+        },
+        "prompt": {
+          "zh": "请根据我提供的采购订单、供应商交期确认和收货记录，整理采购交期跟进清单。先确认统计截止日、订单行匹配键、日期字段、数量单位及部分收货口径；没有供应商确认交期时不要自行设定。使用可执行计算核对订单数量、已收数量和未收数量，只对口径可比且交期明确的记录判断逾期。输出按零件号、订单号可追溯的异常与待跟进清单，标出数据冲突、缺失信息和未指定负责人，不编造供应商承诺。",
+          "en": "Prepare a purchase delivery follow-up list from the orders, supplier confirmations, and receipts I provide. Confirm the reporting date, order-line matching keys, date fields, quantity units, and partial receipt rules. Verify ordered, received, and outstanding quantities with executable calculations. Mark a line overdue only when its confirmed delivery date and scope are clear. Produce a traceable exception list by part number and order number; flag conflicting or missing information and never invent supplier commitments or owners."
+        },
+        "agentId": "gardy-spreadsheet-analyst",
+        "skillId": "xlsx"
+      },
+      {
+        "id": "gardy-quality-issue",
+        "label": {
+          "zh": "质量异常整理",
+          "en": "Quality Issue Review"
+        },
+        "description": {
+          "zh": "把检验和客诉材料整理成可复核的问题清单与草稿",
+          "en": "Turn inspection and complaint records into reviewable drafts"
+        },
+        "prompt": {
+          "zh": "请根据我提供的检验记录、客诉或不良品资料整理质量异常问题清单，并生成中文 Word 草稿。逐项提取来源、零件号、批次、发现日期、不良现象、数量、临时处置、已确认责任人和待验证事项；保留原始单位与术语，标注相互冲突的记录。区分事实、计算、初步判断与待确认信息；没有证据时不要认定根因、责任归属、纠正措施已生效或客户已认可。使用我提供的模板；没有模板时采用清晰的草稿结构。",
+          "en": "Create a quality issue list and editable Chinese Word draft from the inspection, complaint, or defect materials I provide. For each issue, trace its source, part number, batch, discovery date, defect description, quantity, interim action, confirmed owner, and open questions; preserve original units and terminology and flag conflicting records. Separate verified facts, calculations, preliminary judgments, and unknowns. Do not assert a root cause, responsibility, effective corrective action, or customer approval without evidence. Follow my template when supplied."
+        },
+        "agentId": "gardy-document-assistant",
+        "skillId": "docx"
+      }
+    ]
+  }
+}

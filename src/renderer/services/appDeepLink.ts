@@ -14,7 +14,7 @@ export const AppDeepLinkEvent = {
 type SettingsTab = NonNullable<SettingsOpenOptions['initialTab']>;
 
 const SETTINGS_TABS = [
-  'general', 'appearance', 'desktopCompanion', 'coworkAgentEngine', 'model', 'im',
+  'general', 'appearance', 'desktopCompanion', 'coworkAgentEngine', 'model', 'dataModel', 'skills', 'im',
   'browserWebAccess', 'email', 'coworkMemory', 'coworkDreaming', 'plugins',
   'experimental', 'shortcuts', 'help', 'about',
 ] as const satisfies readonly SettingsTab[];
@@ -33,6 +33,8 @@ const SETTINGS_TAB_LABEL_KEYS: Record<SettingsTab, string> = {
   desktopCompanion: 'desktopCompanionTitle',
   coworkAgentEngine: 'coworkAgentEngine',
   model: 'settingsCustomModel',
+  dataModel: 'settingsDataModel',
+  skills: 'settingsSkillManagement',
   im: 'imBot',
   browserWebAccess: 'browserWebAccessTab',
   email: 'emailTab',

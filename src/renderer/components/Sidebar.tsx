@@ -16,7 +16,6 @@ import {
 import type { CoworkSessionSummary } from '../types/cowork';
 import { MainView } from '../types/navigation';
 import { getAgentDisplayNameById } from '../utils/agentDisplay';
-import { getAccountConnectionState } from './accountConnectionState';
 import {
   type AgentSidebarBatchItem,
   AgentSidebarBatchItemKind,
@@ -42,10 +41,7 @@ import SidebarLibraryIcon from './icons/SidebarLibraryIcon';
 import SidebarToggleIcon from './icons/SidebarToggleIcon';
 import TrashIcon from './icons/TrashIcon';
 import LoginButton from './LoginButton';
-import LowCreditPurchaseOfferCard from './LowCreditPurchaseOfferCard';
 import SidebarCapabilitiesMenu from './SidebarCapabilitiesMenu';
-import SidebarExperienceSlot from './SidebarExperienceSlot';
-import { useSidebarPurchaseGuide } from './useSidebarPurchaseGuide';
 import { useIsWindowFullscreen } from './window/useIsWindowFullscreen';
 
 interface SidebarProps {
@@ -68,18 +64,16 @@ interface SidebarProps {
   onTaskFilterSummaryChange: (hasUnreadCompletedTasks: boolean) => void;
   onWidthChange?: (width: number) => void;
   updateNotice?: React.ReactNode;
-  /** The expanded update card owns the sidebar bottom; temporarily hide the
-   * promo banner while preserving it for a smooth return after collapse. */
-  hideAdBanner?: boolean;
   hideLogin?: boolean;
-  isEngineStartupOverlayVisible?: boolean;
+  hideKits?: boolean;
+  hideSkills?: boolean;
+  hideMcp?: boolean;
 }
 
 const DEFAULT_SIDEBAR_WIDTH = 260;
 const MIN_SIDEBAR_WIDTH = 220;
 const MAX_SIDEBAR_WIDTH = 420;
 const SIDEBAR_COLLAPSE_TRANSITION_MS = 200;
-const SIDEBAR_LOGIN_PROMO_TIP_DURATION_MS = 5000;
 
 const normalizeAgentId = (agentId?: string | null) => agentId?.trim() || AgentId.Main;
 const SidebarNewFeatureBadge = {
@@ -197,15 +191,13 @@ const Sidebar: React.FC<SidebarProps> = ({
   onTaskFilterSummaryChange,
   onWidthChange,
   updateNotice,
-  hideAdBanner,
   hideLogin,
-  isEngineStartupOverlayVisible = false,
+  hideKits,
+  hideSkills,
+  hideMcp,
 }) => {
   const currentAgentId = useSelector((state: RootState) => state.agent.currentAgentId);
   const agents = useSelector((state: RootState) => state.agent.agents);
-  const isLoggedIn = useSelector((state: RootState) => state.auth.isLoggedIn);
-  const isAuthLoading = useSelector((state: RootState) => state.auth.isLoading);
-  const accountConnectionState = useSelector((state: RootState) => getAccountConnectionState(state.auth));
   const sessions = useSelector(selectCoworkSessions);
   const currentSessionId = useSelector(selectCurrentSessionId);
   // The home page is the "new task" view, so its nav item reads as selected there.
@@ -220,25 +212,17 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
   const [agentScrollEdges, setAgentScrollEdges] = useState({ top: false, bottom: false });
-  const [isSidebarBannerVisible, setIsSidebarBannerVisible] = useState(false);
   const [showExpertsNewBadge, setShowExpertsNewBadge] = useState(false);
-  const [showLoginPromoTip, setShowLoginPromoTip] = useState(true);
   const isResizingRef = useRef(false);
   const resizeStartXRef = useRef(0);
   const resizeStartWidthRef = useRef(DEFAULT_SIDEBAR_WIDTH);
   const agentScrollContainerRef = useRef<HTMLDivElement>(null);
-  const purchaseGuide = useSidebarPurchaseGuide();
-  const canShowPurchaseGuide = !isCollapsed && !isBatchMode && !hideLogin && !isEngineStartupOverlayVisible;
-  const paymentGuideVisible = canShowPurchaseGuide && purchaseGuide.candidate !== null;
-  const paymentGuideOwnsSlot = canShowPurchaseGuide && (paymentGuideVisible || purchaseGuide.loading);
   const isWindows = window.electron.platform === 'win32';
   const isMac = window.electron.platform === 'darwin';
   const showHeaderRow = !isWindows;
   const isWindowFullscreen = useIsWindowFullscreen();
   // macOS hides the traffic lights in full screen; take their slot instead of leaving a gap.
   const alignHeaderStart = isMac && isWindowFullscreen;
-  const showLoginPromo = !hideLogin && !isAuthLoading && !isLoggedIn && !accountConnectionState;
-  const shouldShowLoginPromoTip = showLoginPromo && showLoginPromoTip;
   const batchSelectableKeySet = useMemo(
     () => new Set(batchSelectableItems.map((item) => item.key)),
     [batchSelectableItems],
@@ -291,41 +275,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       isCurrent = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (!showLoginPromo) {
-      setShowLoginPromoTip(true);
-      return undefined;
-    }
-
-    if (isEngineStartupOverlayVisible) {
-      if (showLoginPromoTip) {
-        const message = 'pausing login promo tip auto-hide while engine startup overlay is visible';
-        console.debug(`[Sidebar] ${message}`);
-        writeSidebarRendererLog('debug', message);
-      }
-      return undefined;
-    }
-
-    if (!showLoginPromoTip) {
-      return undefined;
-    }
-
-    const startMessage = 'starting login promo tip auto-hide timer';
-    console.debug(`[Sidebar] ${startMessage}`);
-    writeSidebarRendererLog('debug', startMessage);
-
-    const hideTimer = window.setTimeout(() => {
-      const message = 'auto hiding login promo tip';
-      console.debug(`[Sidebar] ${message}`);
-      writeSidebarRendererLog('debug', message);
-      setShowLoginPromoTip(false);
-    }, SIDEBAR_LOGIN_PROMO_TIP_DURATION_MS);
-
-    return () => {
-      window.clearTimeout(hideTimer);
-    };
-  }, [isEngineStartupOverlayVisible, showLoginPromo, showLoginPromoTip]);
 
   const dismissExpertsNewBadge = useCallback(() => {
     if (!showExpertsNewBadge) return;
@@ -731,7 +680,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               )}
             </button>
           )}
-          <SidebarCapabilitiesMenu
+          {!hideKits && !hideSkills && !hideMcp && <SidebarCapabilitiesMenu
             activeView={activeView}
             isCollapsed={isCollapsed}
             className={sidebarNavItemClassName}
@@ -748,7 +697,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               setIsSearchOpen(false);
               destination.navigate();
             }}
-          />
+          />}
           <button
             type="button"
             onClick={() => {
@@ -767,9 +716,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div className="relative min-h-0 flex-1">
         <div
           ref={agentScrollContainerRef}
-          className={`scrollbar-hidden h-full overflow-y-auto px-[18px] ${
-            isSidebarBannerVisible && !isBatchMode ? 'pb-[128px]' : 'pb-10'
-          }`}
+          className="scrollbar-hidden h-full overflow-y-auto px-[18px] pb-10"
           onScroll={handleAgentScroll}
         >
           <MyAgentSidebarTree
@@ -802,12 +749,6 @@ const Sidebar: React.FC<SidebarProps> = ({
             onBatchSelectableItemsChange={handleBatchSelectableItemsChange}
           />
         </div>
-        {!isBatchMode && (
-          <SidebarExperienceSlot
-            hidden={hideAdBanner || paymentGuideOwnsSlot}
-            onVisibleChange={setIsSidebarBannerVisible}
-          />
-        )}
         <div
           className={`pointer-events-none absolute inset-x-0 top-0 z-10 h-24 bg-gradient-to-b from-surface-raised to-transparent transition-opacity duration-150 ${
             agentScrollEdges.top ? 'opacity-100' : 'opacity-0'
@@ -832,16 +773,9 @@ const Sidebar: React.FC<SidebarProps> = ({
         currentSessionId={currentSessionId}
         onSelectSession={handleSelectSession}
       />
-      {!isBatchMode && (updateNotice || paymentGuideVisible) && (
+      {!isBatchMode && updateNotice && (
         <div className="non-draggable px-3 pt-1.5">
-          <div hidden={paymentGuideOwnsSlot}>{updateNotice}</div>
-          {paymentGuideVisible && purchaseGuide.candidate && (
-            <LowCreditPurchaseOfferCard
-              offer={purchaseGuide.candidate.offer}
-              variant={purchaseGuide.candidate.variant}
-              onClose={purchaseGuide.dismiss}
-            />
-          )}
+          {updateNotice}
         </div>
       )}
       {isBatchMode ? (
@@ -892,11 +826,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           <div className="flex items-end pl-3 pr-2 pt-1">
             {!hideLogin && (
               <div className="shrink-0">
-                <LoginButton
-                  contentLeftOffset={isCollapsed ? 0 : sidebarWidth}
-                  loggedOutVariant="sidebarPromo"
-                  loginPromoTipVisible={shouldShowLoginPromoTip}
-                />
+                <LoginButton />
               </div>
             )}
             <div className="ml-auto flex shrink-0 items-center justify-end">

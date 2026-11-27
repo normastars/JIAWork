@@ -4,6 +4,7 @@ import type { CreateAgentRequest } from './coworkStore';
 import { getLanguage } from './i18n';
 
 export type { PresetAgent } from '../shared/agent/presets';
+export { GardyPresetAgentId, PRESET_AGENTS, resolveGardyPromptDir } from './gardyPresets';
 
 /** Resolve the official fields for an explicit installation or upgrade. */
 export function presetToCreateRequest(preset: PresetAgent) {

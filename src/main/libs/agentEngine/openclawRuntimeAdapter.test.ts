@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { expect, test, vi } from 'vitest';
 
+import { APP_NAME } from '../../appConstants';
 import { MediaGenerationTool } from '../../mediaGenerationPolicy';
 
 vi.mock('electron', () => ({
@@ -962,12 +963,32 @@ test('resolveOpenClawRuntimeErrorMessage keeps LobsterAI HTTP 403 as model acces
   })).toContain('无权访问该模型');
 });
 
+test('resolveOpenClawRuntimeErrorMessage identifies platform key model restrictions', () => {
+  expect(resolveOpenClawRuntimeErrorMessage('LLM request failed.', {
+    provider: 'openai',
+    model: 'gpt-5-mini',
+    failoverReason: 'auth',
+    rawErrorPreview: '403 This token has no access to model gpt-5-mini',
+  })).toContain('无权访问该模型');
+});
+
 test('resolveOpenClawRuntimeErrorMessage classifies generic error from safe model access metadata', () => {
   expect(resolveOpenClawRuntimeErrorMessage('LLM request failed.', {
     provider: 'minimax',
     model: 'MiniMax-M2.7',
     rawErrorPreview: '403 您无权访问MiniMax-M2.7。',
   })).toContain('无权访问该模型');
+});
+
+test('resolveOpenClawRuntimeErrorMessage prefers unsupported tools metadata over generic schema rejection', () => {
+  expect(resolveOpenClawRuntimeErrorMessage(
+    'LLM request failed: provider rejected the request schema or tool payload.',
+    {
+      provider: 'ollama',
+      model: 'deepseek-r1:8b',
+      rawErrorPreview: '400 registry.ollama.ai/library/deepseek-r1:8b does not support tools',
+    },
+  )).toContain('不支持任务所需的工具调用');
 });
 
 test('resolveOpenClawRuntimeErrorMessage classifies generic error from safe timeout metadata', () => {
@@ -1339,10 +1360,10 @@ test('outbound prompt injects continuity capsule bridge before the current reque
 
   const prompt = await internal.buildOutboundPrompt('session-1', '继续');
 
-  expect(prompt).toContain('[LobsterAI continuity context after context compaction]');
+  expect(prompt).toContain('[嘉迪 AI 工作台 continuity context after context compaction]');
   expect(prompt).toContain('Improve compaction continuity.');
   expect(prompt).toContain('src/main/libs/agentEngine/openclawRuntimeAdapter.ts');
-  expect(prompt.indexOf('[LobsterAI continuity context after context compaction]')).toBeLessThan(
+  expect(prompt.indexOf('[嘉迪 AI 工作台 continuity context after context compaction]')).toBeLessThan(
     prompt.indexOf('[Current user request]'),
   );
 });
@@ -1387,10 +1408,10 @@ test('outbound prompt injects full capsule first and mini capsule on later turns
   const firstPrompt = await internal.buildOutboundPrompt('session-1', '继续');
   const secondPrompt = await internal.buildOutboundPrompt('session-1', '再继续');
 
-  expect(firstPrompt).toContain('[LobsterAI continuity context after context compaction]');
+  expect(firstPrompt).toContain('[嘉迪 AI 工作台 continuity context after context compaction]');
   expect(firstPrompt).toContain('Touched files:');
   expect(firstPrompt).toContain('src/main/libs/agentEngine/openclawRuntimeAdapter.ts');
-  expect(secondPrompt).toContain('[LobsterAI brief continuity context after context compaction]');
+  expect(secondPrompt).toContain('[嘉迪 AI 工作台 brief continuity context after context compaction]');
   expect(secondPrompt).toContain('Improve compaction continuity.');
   expect(secondPrompt).toContain('Inject capsule bridge.');
   expect(secondPrompt).not.toContain('Touched files:');
@@ -1439,9 +1460,9 @@ test('outbound prompt injects workspace rehydration bridge before the current re
 
   const prompt = await internal.buildOutboundPrompt('session-1', '继续');
 
-  expect(prompt).toContain('[LobsterAI workspace state after context compaction]');
+  expect(prompt).toContain('[嘉迪 AI 工作台 workspace state after context compaction]');
   expect(prompt).toContain('src/main/libs/agentEngine/coworkWorkspaceRehydration.ts');
-  expect(prompt.indexOf('[LobsterAI workspace state after context compaction]')).toBeLessThan(
+  expect(prompt.indexOf('[嘉迪 AI 工作台 workspace state after context compaction]')).toBeLessThan(
     prompt.indexOf('[Current user request]'),
   );
 });
@@ -1489,8 +1510,8 @@ test('outbound prompt injects workspace rehydration bridge once per compaction',
   const firstPrompt = await internal.buildOutboundPrompt('session-1', '继续');
   const secondPrompt = await internal.buildOutboundPrompt('session-1', '再继续');
 
-  expect(firstPrompt).toContain('[LobsterAI workspace state after context compaction]');
-  expect(secondPrompt).not.toContain('[LobsterAI workspace state after context compaction]');
+  expect(firstPrompt).toContain('[嘉迪 AI 工作台 workspace state after context compaction]');
+  expect(secondPrompt).not.toContain('[嘉迪 AI 工作台 workspace state after context compaction]');
 });
 
 test('outbound prompt injects top-k evidence bridge before the current request', async () => {
@@ -1549,9 +1570,9 @@ test('outbound prompt injects top-k evidence bridge before the current request',
 
   const prompt = await internal.buildOutboundPrompt('session-1', '继续处理 src/pages/Bakery.tsx 的 npm test failed');
 
-  expect(prompt).toContain('[LobsterAI retrieved evidence after context compaction]');
+  expect(prompt).toContain('[嘉迪 AI 工作台 retrieved evidence after context compaction]');
   expect(prompt).toContain('npm test failed in src/pages/Bakery.tsx');
-  expect(prompt.indexOf('[LobsterAI retrieved evidence after context compaction]')).toBeLessThan(
+  expect(prompt.indexOf('[嘉迪 AI 工作台 retrieved evidence after context compaction]')).toBeLessThan(
     prompt.indexOf('[Current user request]'),
   );
 });
@@ -1593,7 +1614,7 @@ test('outbound prompt skips continuity capsule bridge before compaction', async 
 
   const prompt = await internal.buildOutboundPrompt('session-1', 'hello');
 
-  expect(prompt).not.toContain('[LobsterAI continuity context after context compaction]');
+  expect(prompt).not.toContain('[嘉迪 AI 工作台 continuity context after context compaction]');
 });
 
 test('context usage ignores non-checkpoint compactionCount', () => {
@@ -4525,7 +4546,7 @@ test('system prompt injection skips sections that AGENTS.md already delivers', a
       });
 
       const message = requests.find((request) => request.method === 'chat.send')?.params.message;
-      expect(message).toContain('[LobsterAI system instructions]');
+      expect(message).toContain(`[${APP_NAME} system instructions]`);
       expect(message).toContain('- Use the docx skill.');
       expect(message).not.toContain('Keep replies concise and direct.');
       expect(message).not.toContain('## Scheduled Tasks');
@@ -6269,7 +6290,7 @@ test('subagent history sync preserves existing local user text without rewriting
   const rawOutboundPrompt = `[LobsterAI system instructions]
 hidden setup
 
-[Context bridge from previous LobsterAI conversation]
+[Context bridge from previous 嘉迪 AI 工作台 conversation]
 previous context
 
 [Current user request]

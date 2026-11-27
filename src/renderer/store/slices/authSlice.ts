@@ -4,7 +4,7 @@ import {
   type AuthSessionStatus as AuthSessionStatusValue,
 } from '@shared/auth/constants';
 
-import { type CreditQuotaSnapshot, getCreditQuotaSnapshot } from '../../services/lowCreditPurchaseOffer';
+import { type CreditQuotaSnapshot, getCreditQuotaSnapshot } from '../../services/creditQuotaSnapshot';
 
 export interface UserProfile {
   yid: string;

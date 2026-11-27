@@ -94,7 +94,6 @@ import {
   normalizeBrowserWebAccessConfig,
 } from '../shared/browserWebAccess/constants';
 import type { BrowserPasskeyRequest } from '../shared/browserWebAccess/passkeys';
-import { normalizeClientBannerPlacement } from '../shared/clientBanner/constants';
 import { ClipboardIpc } from '../shared/clipboard/constants';
 import {
   type CoworkBrowserAnnotationMessageBatch,
@@ -246,7 +245,7 @@ import type { ShellOpenFailureReason as ShellOpenFailureReasonType } from '../sh
 import { type ShellGetBrowserAppsInput, ShellIpc, ShellOpenFailureReason } from '../shared/shell/constants';
 import { isUrlOnDomain } from '../shared/url/hostname';
 import { AgentManager } from './agentManager';
-import { APP_NAME, APP_USER_MODEL_ID, DB_FILENAME } from './appConstants';
+import { APP_DATA_DIRECTORY_NAME, APP_NAME, APP_USER_MODEL_ID, DB_FILENAME } from './appConstants';
 import { createLocalFileProtocolResponse } from './artifactLocalFileProtocol';
 import { authQuotaGateStateFromQuota, AuthSubscriptionStatus, createDefaultAuthQuotaGateState, normalizeAuthQuota } from './authQuota';
 import { type AutoLaunchStatus, getAutoLaunchStatus, isAutoLaunched, setAutoLaunchEnabled } from './autoLaunchManager';
@@ -280,6 +279,7 @@ import {
   resolveEnterpriseMembershipRevocationSource,
 } from './enterpriseAccount/membershipRevocation';
 import { registerFeedbackIpc } from './feedback/feedbackIpc';
+import { getGardyExpertCatalog } from './gardyPresets';
 import { getLanguage, setLanguage, t } from './i18n';
 import { IMGatewayConfig, IMGatewayManager } from './im';
 import {
@@ -300,8 +300,6 @@ import type {
   TelegramInstanceConfig,
   WecomInstanceConfig,
 } from './im/types';
-import { registerAccountMenuMoreHandlers } from './ipcHandlers/accountMenuMore';
-import { registerActivityIpcHandlers } from './ipcHandlers/activity';
 import { registerAgentHandlers } from './ipcHandlers/agents';
 import { registerAsrIpcHandlers } from './ipcHandlers/asr';
 import { registerBrowserCredentialHandlers } from './ipcHandlers/browserCredentials/handlers';
@@ -320,6 +318,7 @@ import { registerKitHandlers } from './ipcHandlers/kits';
 import { hasUnsafeMarkdownEdits, registerMarkdownEditingHandlers } from './ipcHandlers/markdownEditing';
 import { cancelAllMcpOAuthLogins, registerMcpHandlers } from './ipcHandlers/mcp';
 import { registerNimQrLoginHandlers } from './ipcHandlers/nimQrLogin';
+import { registerNlqIpcHandlers } from './ipcHandlers/nlq';
 import { registerOpenClawUserConfigHandlers } from './ipcHandlers/openclawUserConfig/handlers';
 import { registerPermissionIpcHandlers } from './ipcHandlers/permissions/handlers';
 import { registerPluginHandlers } from './ipcHandlers/plugins';
@@ -335,7 +334,6 @@ import {
 import { registerSessionDiagnosticsHandlers } from './ipcHandlers/sessionDiagnostics';
 import { registerSiteIpcHandlers } from './ipcHandlers/site';
 import { registerSkillHandlers } from './ipcHandlers/skills';
-import { registerSubscriptionTrialIpcHandlers } from './ipcHandlers/subscriptionTrial';
 import { LibraryIndexService } from './library/libraryIndexService';
 import { registerLibraryIpcHandlers } from './library/libraryIpc';
 import { LibraryLocalStore } from './library/libraryLocalStore';
@@ -390,11 +388,6 @@ import {
   updateServerModelMetadataFromResponse,
 } from './libs/claudeSettings';
 import {
-  appendClientBannerContentTypes,
-  appendClientBannerVersion,
-  fetchClientBanner,
-} from './libs/clientBannerRequest';
-import {
   getCopilotLoopbackPort,
   startCopilotLoopbackProxy,
   stopCopilotLoopbackProxy,
@@ -443,7 +436,6 @@ import {
 } from './libs/developmentProtocolContext';
 import { DshUsageTelemetry } from './libs/dshUsageTelemetry';
 import {
-  getExpertStoreUrl,
   getHtmlSharePublicBaseUrl,
   getImageCreationExamplesUrl,
   getKitStoreUrl,
@@ -458,9 +450,12 @@ import {
   resolveEnterpriseConfigPath,
   syncEnterpriseConfig,
 } from './libs/enterpriseConfigSync';
-import { ExpertStore } from './libs/expertStore';
 import { refreshFakeIpNetworkState } from './libs/fakeIpNetwork';
 import { fitImageBytesForModel } from './libs/fitImageForModel';
+import { getGardyEnterpriseConfig } from './libs/gardyEnterpriseConfig';
+import { syncGardyPresetIdentities, syncGardyPresetNames } from './libs/gardyPresetNameSync';
+import { syncGardyPresetPrompts } from './libs/gardyPresetPromptSync';
+import { removeStockGardyBootstrap } from './libs/gardyWorkspaceBootstrap';
 import {
   createOfficePreviewSession,
   createPreviewSession,
@@ -715,6 +710,10 @@ import {
   summarizeMediaGenerationParamsForLog,
 } from './mediaGenerationReferences';
 import { MediaRunAccountScopes, MediaRunLifecycle } from './mediaRunAccountScopes';
+import { loadNlqConnectionConfig } from './nlq/connectionConfig';
+import { getNlqMcpServerConfig, startNlqMcpServer } from './nlq/mcpServer';
+import { initializeNlqModel } from './nlq/modelStore';
+import { refreshPublishedNlqModel } from './nlq/remoteModel';
 import { MAIN_OFFICE_FORMATS } from './office/formats';
 import { OfficeEditing } from './office/officeEditing';
 import { OpenClawSessionIpc } from './openclawSession/constants';
@@ -726,6 +725,7 @@ import {
 import { registerRendererPermissionHandler } from './permissions/rendererPermission';
 import { patchEnabledNspClawguard } from './plugins/nspClawguardCompatibility';
 import { isHiddenUserPluginId } from './plugins/pluginManager';
+import { GardyPresetAgentId } from './presetAgents';
 import type { SkillChangeBatch } from './skills/skillChangeDiagnostics';
 import { SkillManager } from './skills/skillManager';
 import { getSkillServiceManager } from './skills/skillServices';
@@ -2106,7 +2106,7 @@ const developmentLaunchContext = resolveDevelopmentLaunchContext({
 
 const configureUserDataPath = (): void => {
   const appDataPath = app.getPath('appData');
-  const preferredUserDataPath = developmentLaunchContext.userDataDir || path.join(appDataPath, APP_NAME);
+  const preferredUserDataPath = developmentLaunchContext.userDataDir || path.join(appDataPath, APP_DATA_DIRECTORY_NAME);
   const currentUserDataPath = app.getPath('userData');
 
   if (currentUserDataPath !== preferredUserDataPath) {
@@ -2120,7 +2120,7 @@ let startupDataMigrationRestoreResult: DataMigrationLastRestoreResult | null = n
 try {
   startupDataMigrationRestoreResult = performPendingDataMigrationRestoreSync({
     userDataPath: app.getPath('userData'),
-    rollbackRootPath: path.join(app.getPath('appData'), `${APP_NAME}-migration-rollbacks`),
+    rollbackRootPath: path.join(app.getPath('appData'), `${APP_DATA_DIRECTORY_NAME}-migration-rollbacks`),
   });
 } catch (error) {
   console.error('[DataMigration] pending restore failed before logger initialization:', error);
@@ -2610,9 +2610,13 @@ const bootstrapOpenClawEngine = async (
 
       // Ensure IDENTITY.md has default content in the main agent workspace
       try {
-        ensureDefaultIdentity(getMainAgentWorkspacePath(manager.getStateDir()));
+        const workspacePath = getMainAgentWorkspacePath(manager.getStateDir());
+        ensureDefaultIdentity(workspacePath);
+        if (removeStockGardyBootstrap(workspacePath)) {
+          console.log('[Gardy] removed default OpenClaw bootstrap instructions');
+        }
       } catch (err) {
-        console.warn('[OpenClaw] bootstrap: ensureDefaultIdentity failed (non-fatal):', err);
+        console.warn('[OpenClaw] bootstrap: workspace setup failed (non-fatal):', err);
       }
 
       const syncResult = await syncOpenClawConfig({
@@ -2753,13 +2757,7 @@ const getCoworkStore = () => {
 let agentManager: AgentManager | null = null;
 const getAgentManager = () => {
   if (!agentManager) {
-    const expertStore = new ExpertStore({
-      getEndpoint: getExpertStoreUrl,
-      cacheDirectory: path.join(app.getPath('userData'), 'expert-store'),
-      onLoad: fields => { void getMainLogReporter().report({ action: LogReporterAction.ExpertJourney,
-        schemaVersion: UsageAnalytics.SchemaVersion, stage: UsageStage.CatalogRefresh, ...fields }); },
-    });
-    agentManager = new AgentManager(getCoworkStore(), () => expertStore.getCatalog());
+    agentManager = new AgentManager(getCoworkStore(), async () => getGardyExpertCatalog());
   }
   return agentManager;
 };
@@ -2924,7 +2922,11 @@ const getOpenClawConfigSync = (): OpenClawConfigSync => {
       getResolvedMcpServers: () => {
         // Synchronous wrapper: returns last resolved servers from cache.
         // The async resolution happens during syncOpenClawConfig via McpRuntime.
-        return getMcpRuntime().getResolvedServersCache();
+        const nlqServer = getNlqMcpServerConfig();
+        return [
+          ...getMcpRuntime().getResolvedServersCache(),
+          ...(nlqServer ? [nlqServer] : []),
+        ];
       },
       getAskUserCallbackUrl: () => getMcpRuntime().getAskUserCallbackUrl(),
       getMediaCallbackUrl: () => getMcpRuntime().getMediaCallbackUrl(),
@@ -5033,6 +5035,7 @@ type AppConfigSettings = {
   shortcuts?: Record<string, unknown>;
   theme?: string;
   language?: string;
+  language_initialized?: boolean;
   useSystemProxy?: boolean;
   sqliteAutoBackupEnabled?: boolean;
   usageAnalyticsEnabled?: boolean;
@@ -5628,7 +5631,7 @@ if (!gotTheLock) {
     try {
       return {
         success: true as const,
-        config: getStore().get('enterprise_config') ?? null,
+        config: getGardyEnterpriseConfig(getStore().get('enterprise_config')),
       };
     } catch (error) {
       console.error('[Enterprise] failed to read enterprise UI config:', error);
@@ -8334,55 +8337,6 @@ if (!gotTheLock) {
     getLogEntries: () => getLogExportEntries(getOpenClawEngineManager()),
   });
 
-  registerActivityIpcHandlers({
-    ipcMain,
-    getMainWindow: () => mainWindow,
-    getServerBaseUrl: getServerApiBaseUrl,
-    getClientVersion: () => app.getVersion(),
-    platform: process.platform,
-    hasAuthTokens: () => getAuthTokens() !== null,
-    fetchPublic: (url, options) => net.fetch(url, options),
-    fetchWithAuth,
-  });
-
-  registerAccountMenuMoreHandlers({
-    ipcMain,
-    getMainWindow: () => mainWindow,
-    getServerBaseUrl: getServerApiBaseUrl,
-    fetchPublic: (url, options) => net.fetch(url, options),
-  });
-
-  registerSubscriptionTrialIpcHandlers({
-    ipcMain,
-    getMainWindow: () => mainWindow,
-    getServerBaseUrl: getServerApiBaseUrl,
-    getClientVersion: () => app.getVersion(),
-    platform: process.platform,
-    hasAuthTokens: () => getAuthTokens() !== null,
-    fetchPublic: (url, options) => net.fetch(url, options),
-    fetchWithAuth,
-  });
-
-  const activateLowCreditPurchaseOffer = async (signal?: AbortSignal): Promise<Record<string, unknown> | null> => {
-    try {
-      const response = await fetchWithAuth(`${getServerApiBaseUrl()}/api/purchase-offers/low-credit/activate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal,
-      });
-      if (!response.ok) return null;
-      const body = (await response.json()) as {
-        code: number;
-        data?: Record<string, unknown>;
-      };
-      if (body.code !== 0 || !body.data) return null;
-      return { ...body.data, receivedAtEpochMs: Date.now() };
-    } catch (error) {
-      console.warn('[Auth] low-credit purchase offer activation failed:', error);
-      return null;
-    }
-  };
-
   ipcMain.handle(AuthIpcChannel.Exchange, (_event, { code }: { code: string }) => authLoginAttempt.runExchange(async (loginAttempt) => {
     const startingTokens = getAuthTokens();
     const startingUser = getAuthUser();
@@ -8477,7 +8431,6 @@ if (!gotTheLock) {
         `[Auth] exchange completed; enterpriseContext=${enterpriseContext ? 'present' : 'absent'}`,
       );
       const quota = normalizeQuota(body.data.quota);
-      const purchaseOffer = await activateLowCreditPurchaseOffer(loginAttempt.signal);
       if (!loginAttempt.isCurrent()) throw new Error('Login was cancelled or replaced');
       if (
         authAccountGeneration !== exchangeAccountGeneration
@@ -8501,7 +8454,6 @@ if (!gotTheLock) {
         success: true,
         user: body.data.user,
         quota,
-        purchaseOffer,
         enterpriseContext,
       };
     } catch (error) {
@@ -8651,13 +8603,11 @@ if (!gotTheLock) {
         `[Auth] profile refresh completed; quota=${quota ? 'present' : 'absent'}; `
         + `enterpriseContext=${enterpriseContext ? 'present' : 'absent'}`,
       );
-      const purchaseOffer = await activateLowCreditPurchaseOffer();
       return {
         success: true,
         status: AuthSessionStatus.Authenticated,
         user: profileBody.data,
         quota,
-        purchaseOffer,
         enterpriseContext,
       };
     } catch (error) {
@@ -8698,12 +8648,10 @@ if (!gotTheLock) {
       syncOpenClawConfigIfAuthQuotaGateChanged(previousQuotaGateState);
       const enterpriseContextResult = await refreshEnterpriseAccountContext();
       if (authAccountGeneration !== requestAccountGeneration) return { success: false };
-      const purchaseOffer = await activateLowCreditPurchaseOffer();
       if (authAccountGeneration !== requestAccountGeneration) return { success: false };
       return {
         success: true,
         quota,
-        purchaseOffer,
         enterpriseContext: enterpriseContextResult.context,
       };
     } catch {
@@ -8742,140 +8690,6 @@ if (!gotTheLock) {
       }
       if (body.code !== 0 || !body.data) return { success: false };
       return { success: true, data: body.data };
-    } catch {
-      return { success: false };
-    }
-  });
-
-  ipcMain.handle(AuthIpcChannel.ClaimCreditsFinalReward, async (_event, payload: { campaignCode?: string }) => {
-    try {
-      const campaignCode = payload?.campaignCode?.trim();
-      if (!campaignCode) return { success: false, error: 'Missing campaign code' };
-      const serverBaseUrl = getServerApiBaseUrl();
-      const url = appendKeyfromQuery(`${serverBaseUrl}/api/credits-reset-campaign/free-credits/claim`);
-      const resp = await fetchWithAuth(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ campaignCode }),
-      });
-      const body = (await resp.json()) as {
-        code: number;
-        message?: string;
-        data?: Record<string, unknown>;
-      };
-      if (!resp.ok || body.code !== 0 || !body.data) {
-        return { success: false, error: body.message || `Claim failed (${resp.status})` };
-      }
-      return { success: true, data: body.data };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Claim failed',
-      };
-    }
-  });
-
-  ipcMain.handle(AuthIpcChannel.GetActiveClientBanner, async () => {
-    try {
-      const serverBaseUrl = getServerApiBaseUrl();
-      const url = appendKeyfromQuery(appendClientBannerVersion(
-        `${serverBaseUrl}/api/client-banners/active?placement=desktop_sidebar`,
-        app.getVersion(),
-      ));
-      const resp = await net.fetch(url, { cache: 'no-store' });
-      if (!resp.ok) return { success: false };
-      const body = (await resp.json()) as { code: number; data: Record<string, unknown> | null };
-      if (body.code !== 0) return { success: false };
-      return { success: true, data: body.data ?? null };
-    } catch {
-      return { success: false };
-    }
-  });
-
-  ipcMain.handle(AuthIpcChannel.GetActiveClientBanners, async () => {
-    try {
-      const serverBaseUrl = getServerApiBaseUrl();
-      const url = appendKeyfromQuery(appendClientBannerVersion(
-        `${serverBaseUrl}/api/client-banners/active-list?placement=desktop_sidebar`,
-        app.getVersion(),
-      ));
-      const resp = await net.fetch(url, { cache: 'no-store' });
-      if (!resp.ok) return { success: false };
-      const body = (await resp.json()) as { code: number; data: Record<string, unknown>[] | null };
-      if (body.code !== 0) return { success: false };
-      return { success: true, data: Array.isArray(body.data) ? body.data : [] };
-    } catch {
-      return { success: false };
-    }
-  });
-
-  ipcMain.handle(AuthIpcChannel.GetClientBannerSnapshot, async (_event, placementArg?: unknown) => {
-    const serverBaseUrl = getServerApiBaseUrl();
-    const placement = encodeURIComponent(normalizeClientBannerPlacement(placementArg));
-    const bannerFetchDeps = {
-      hasAuthTokens: () => getAuthTokens() !== null,
-      fetchWithAuth,
-      fetchPublic: (url: string, init?: RequestInit) => net.fetch(url, init),
-    };
-    try {
-      const snapshotUrl = appendKeyfromQuery(
-        appendClientBannerContentTypes(appendClientBannerVersion(
-          `${serverBaseUrl}/api/client-banners/snapshot?placement=${placement}`,
-          app.getVersion(),
-        )),
-      );
-      const snapshotResponse = await fetchClientBanner(snapshotUrl, { cache: 'no-store' }, bannerFetchDeps);
-      if (snapshotResponse.ok) {
-        const snapshotBody = (await snapshotResponse.json()) as {
-          code: number;
-          data?: {
-            serverTime?: string;
-            nextRefreshAt?: string | null;
-            banners?: Record<string, unknown>[];
-          };
-        };
-        if (snapshotBody.code === 0
-            && snapshotBody.data
-            && typeof snapshotBody.data.serverTime === 'string'
-            && Array.isArray(snapshotBody.data.banners)) {
-          return {
-            success: true,
-            data: {
-              serverTime: snapshotBody.data.serverTime,
-              nextRefreshAt: snapshotBody.data.nextRefreshAt ?? null,
-              clientVersion: app.getVersion(),
-              banners: snapshotBody.data.banners,
-            },
-          };
-        }
-      }
-    } catch {
-      // Fall through to the legacy list endpoint during mixed-version rollout.
-    }
-
-    try {
-      const legacyUrl = appendKeyfromQuery(
-        appendClientBannerContentTypes(appendClientBannerVersion(
-          `${serverBaseUrl}/api/client-banners/active-list?placement=${placement}`,
-          app.getVersion(),
-        )),
-      );
-      const legacyResponse = await fetchClientBanner(legacyUrl, { cache: 'no-store' }, bannerFetchDeps);
-      if (!legacyResponse.ok) return { success: false };
-      const legacyBody = (await legacyResponse.json()) as {
-        code: number;
-        data: Record<string, unknown>[] | null;
-      };
-      if (legacyBody.code !== 0) return { success: false };
-      return {
-        success: true,
-        data: {
-          serverTime: new Date().toISOString(),
-          nextRefreshAt: null,
-          clientVersion: app.getVersion(),
-          banners: Array.isArray(legacyBody.data) ? legacyBody.data : [],
-        },
-      };
     } catch {
       return { success: false };
     }
@@ -10051,7 +9865,7 @@ if (!gotTheLock) {
       console.error('[DataMigration] backup failed:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to back up LobsterAI data',
+        error: error instanceof Error ? error.message : `Failed to back up ${APP_NAME} data`,
       };
     }
   });
@@ -10089,7 +9903,7 @@ if (!gotTheLock) {
 
       const restoreResult = performDataMigrationRestoreSync({
         userDataPath: app.getPath('userData'),
-        rollbackRootPath: path.join(app.getPath('appData'), `${APP_NAME}-migration-rollbacks`),
+        rollbackRootPath: path.join(app.getPath('appData'), `${APP_DATA_DIRECTORY_NAME}-migration-rollbacks`),
         archivePath,
       });
       const success = restoreResult?.status === DataMigrationRestoreStatus.Success;
@@ -10110,11 +9924,11 @@ if (!gotTheLock) {
         success,
         scheduledRestart: rendererReleased,
         rollbackPath: restoreResult?.rollbackPath,
-        error: success ? undefined : restoreResult?.error || 'Failed to import LobsterAI data backup',
+        error: success ? undefined : restoreResult?.error || `Failed to import ${APP_NAME} data backup`,
       };
     } catch (error) {
       isCleanupInProgress = false;
-      const message = error instanceof Error ? error.message : 'Failed to import LobsterAI data backup';
+      const message = error instanceof Error ? error.message : `Failed to import ${APP_NAME} data backup`;
       console.error('[DataMigration] restore scheduling failed:', error);
       if (rendererReleased) {
         dialog.showErrorBox(t('dataMigrationRestoreDialogTitle'), message);
@@ -10499,6 +10313,7 @@ if (!gotTheLock) {
       };
     },
   });
+  registerNlqIpcHandlers(ipcMain);
 
   registerDecisionModelHandlers({
     getStore: () => getStore(),
@@ -16301,6 +16116,7 @@ if (!gotTheLock) {
     profiler.mark('initStore');
     console.log('[Main] initApp: starting initStore()');
     store = await initStore();
+    store.set('enterprise_config', getGardyEnterpriseConfig(store.get('enterprise_config')));
     profiler.measure('initStore');
     console.log('[Main] initApp: store initialized');
     const libraryLocalStore = new LibraryLocalStore(store.getDatabase());
@@ -16545,6 +16361,8 @@ if (!gotTheLock) {
                 command: server.command,
                 args: server.args,
                 env: server.env,
+                url: server.url,
+                headers: server.headers,
               });
             } else {
               mcpStoreInstance.createServer({
@@ -16554,6 +16372,8 @@ if (!gotTheLock) {
                 command: server.command,
                 args: server.args,
                 env: server.env,
+                url: server.url,
+                headers: server.headers,
               });
             }
           },
@@ -16618,20 +16438,20 @@ if (!gotTheLock) {
         console.error('[Enterprise] config sync failed:', error);
       }
     } else {
-      // No enterprise config package found — clear any previously stored config
-      // so the app exits enterprise mode after the package is removed.
-      const hadEnterprise = store.get('enterprise_config');
-      if (hadEnterprise) {
-        store.delete('enterprise_config');
-        // Reset executionMode to default so sandbox mode reverts to "off".
-        const cs = getCoworkStore();
-        cs.setConfig({ executionMode: 'local' });
-        console.log(
-          '[Enterprise] config package removed, cleared enterprise mode and reset executionMode',
-        );
-      }
+      store.set('enterprise_config', getGardyEnterpriseConfig());
     }
     profiler.measure('enterpriseConfigSync');
+
+    loadNlqConnectionConfig();
+    initializeNlqModel(app.getPath('userData'));
+    void refreshPublishedNlqModel().catch(error => {
+      console.warn('[NLQ] initial Admin model sync unavailable:', error);
+    });
+    try {
+      await startNlqMcpServer();
+    } catch (error) {
+      console.error('[NLQ] MCP server startup failed:', error);
+    }
 
     bindCoworkRuntimeForwarder();
     bindOpenClawStatusForwarder();
@@ -16678,11 +16498,34 @@ if (!gotTheLock) {
     // can match lobsterai-server models without falling back.
     profiler.mark('agentModelMigration');
     const defaultAgentModelRef = resolveDefaultAgentModelRef();
+    const agentManagerInstance = getAgentManager();
+    let installedGardyPresetCount = 0;
+    for (const presetId of Object.values(GardyPresetAgentId)) {
+      if (agentManagerInstance.listAgents().some(agent => agent.presetId === presetId)) continue;
+      if (await agentManagerInstance.addPresetAgent(presetId, defaultAgentModelRef)) {
+        installedGardyPresetCount++;
+      }
+    }
+    if (installedGardyPresetCount > 0) {
+      console.log(`[Agents] installed ${installedGardyPresetCount} GARDY preset agent(s)`);
+    }
+    const renamedGardyPresetCount = syncGardyPresetNames(agentManagerInstance);
+    if (renamedGardyPresetCount > 0) {
+      console.log(`[Agents] renamed ${renamedGardyPresetCount} GARDY preset agent(s)`);
+    }
+    const updatedGardyIdentityCount = syncGardyPresetIdentities(agentManagerInstance);
+    if (updatedGardyIdentityCount > 0) {
+      console.log(`[Agents] updated ${updatedGardyIdentityCount} GARDY preset identity text(s)`);
+    }
+    const updatedGardyPresetCount = syncGardyPresetPrompts(store, agentManagerInstance);
+    if (updatedGardyPresetCount > 0) {
+      console.log(`[Agents] updated ${updatedGardyPresetCount} GARDY preset prompt(s)`);
+    }
     const backfilledAgentModels = getCoworkStore().backfillEmptyAgentModels(defaultAgentModelRef);
     const qualifiedAgentModels = migrateAgentModelRefs({
       defaultModelRef: defaultAgentModelRef,
       availableProviders: buildAvailableOpenClawProviders(),
-      agents: getAgentManager().listAgents(),
+      agents: agentManagerInstance.listAgents(),
       updateAgent: (id, patch) => getCoworkStore().updateAgent(id, patch),
     });
     if (backfilledAgentModels > 0 || qualifiedAgentModels > 0) {

@@ -480,6 +480,7 @@ interface CoworkPromptInputProps {
   contextAgentId?: string;
   onManageSkills?: () => void;
   onManageKits?: () => void;
+  showVoiceInput?: boolean;
   sessionId?: string;
   contextUsageControl?: React.ReactNode;
   goal?: CoworkGoal | null;
@@ -526,6 +527,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
       contextAgentId,
       onManageSkills,
       onManageKits,
+      showVoiceInput = true,
       sessionId,
       contextUsageControl,
       goal,
@@ -3381,7 +3383,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
             <span className="min-w-0 flex-1 truncate">{i18nService.t('coworkPlanMode')}</span>
           </button>
 
-          <SkillsPopover
+          {onManageSkills && <SkillsPopover
             isOpen={showSkillsPopover}
             onClose={() => setShowSkillsPopover(false)}
             onSelectSkill={handleSelectSkill}
@@ -3392,7 +3394,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
             autoFocusSearch={false}
             onMouseEnter={cancelCloseSkillsPopover}
             onMouseLeave={scheduleCloseSkillsPopover}
-          />
+          />}
         </div>
       )}
     </div>
@@ -3431,7 +3433,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
   );
   const largeSendButtonSizeClass = useCompactSendButton ? 'h-7 w-7' : 'h-8 w-8';
   const largeSendIconSizeClass = useCompactSendButton ? 'h-4 w-4' : 'h-[18px] w-[18px]';
-  const largeVoiceInputButton = !remoteManaged ? renderVoiceInputButton(
+  const largeVoiceInputButton = !remoteManaged && showVoiceInput ? renderVoiceInputButton(
     `flex ${largeSendButtonSizeClass} shrink-0 items-center justify-center rounded-full`,
     largeSendIconSizeClass,
   ) : null;
@@ -4375,7 +4377,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
                 >
                   <PaperClipIcon className="h-5 w-5" />
                 </button>
-                {renderVoiceInputButton(
+                {showVoiceInput && renderVoiceInputButton(
                   'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full',
                   'h-5 w-5',
                 )}

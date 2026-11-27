@@ -5,7 +5,15 @@ import { EventEmitter } from 'events';
 import fs from 'fs';
 import path from 'path';
 
-import { AgentId, AgentModelSelectionMode, DefaultAgentAvatarIcon, DefaultAgentProfile, LegacyAgentName, normalizeAgentAvatarIcon } from '../shared/agent';
+import {
+  AgentId,
+  AgentModelSelectionMode,
+  DefaultAgentAvatarIcon,
+  DefaultAgentProfile,
+  LegacyAgentName,
+  LegacyDefaultAgentAvatarIcon,
+  normalizeAgentAvatarIcon,
+} from '../shared/agent';
 import {
   OpenClawCronRunMetadataKey,
   parseOpenClawCronSessionKey,
@@ -745,11 +753,22 @@ export class SqliteStore {
           .run(AgentId.Main, DefaultAgentProfile.Name, existingSystemPrompt, DefaultAgentAvatarIcon, now, now);
       } else {
         const normalizedName = mainAgent.name.trim();
-        const shouldUpgradeName = !normalizedName || normalizedName.toLowerCase() === LegacyAgentName.Main;
+        const normalizedLegacyName = normalizedName.toLowerCase();
+        const shouldUpgradeName = !normalizedName
+          || normalizedLegacyName === LegacyAgentName.Main
+          || normalizedLegacyName === LegacyAgentName.LobsterAI
+          || normalizedLegacyName === LegacyAgentName.GardyWorkbench
+          || normalizedName === LegacyAgentName.GardyAssistant;
         if (shouldUpgradeName) {
           this.db
             .prepare('UPDATE agents SET name = ?, updated_at = ? WHERE id = ?')
             .run(DefaultAgentProfile.Name, Date.now(), AgentId.Main);
+          this.didRunMigration = true;
+        }
+        if (mainAgent.icon === LegacyDefaultAgentAvatarIcon) {
+          this.db
+            .prepare('UPDATE agents SET icon = ?, updated_at = ? WHERE id = ?')
+            .run(DefaultAgentAvatarIcon, Date.now(), AgentId.Main);
           this.didRunMigration = true;
         }
       }

@@ -9,6 +9,7 @@ import SidebarToggleIcon from '../icons/SidebarToggleIcon';
 import WindowTitleBar from './WindowTitleBar';
 
 interface WindowsAppTitleBarProps {
+  title: string;
   isOverlayActive?: boolean;
   isSidebarCollapsed?: boolean;
   sidebarWidth?: number;
@@ -30,6 +31,7 @@ interface WindowsAppTitleBarProps {
 }
 
 const WindowsAppTitleBar: React.FC<WindowsAppTitleBarProps> = ({
+  title,
   isOverlayActive = false,
   isSidebarCollapsed = false,
   sidebarWidth = 244,
@@ -88,13 +90,13 @@ const WindowsAppTitleBar: React.FC<WindowsAppTitleBarProps> = ({
       >
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
           <img
-            src="logo.png"
+            src="gardy-mark.svg"
             alt=""
             draggable={false}
             className="h-4 w-4 max-w-none shrink-0"
           />
           <span className={`${isSidebarCollapsed ? 'hidden' : 'min-w-0 truncate'} text-sm font-medium text-foreground`}>
-            LobsterAI
+            {title}
           </span>
         </div>
         {(onToggleSidebar || onSearch || showFilterIcon || onNewChat || updateBadge) && (

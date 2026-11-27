@@ -475,6 +475,14 @@ const MANAGED_DEFERRED_TOOLS_PROMPT = [
   `- Before telling the user a capability is missing, or replacing a named tool with a script workaround, check \`${OpenClawToolSearchControlTool.Search}\`.`,
 ].join('\n');
 
+const MANAGED_CHINESE_OUTPUT_PROMPT = [
+  '## 输出语言',
+  '',
+  '- 所有面向用户的说明、分析、结论、提问和最终回复必须使用简体中文。',
+  '- 生成 Word、Excel、PPT、Markdown、网页或其他交付内容时，标题、正文、图表标签和说明默认使用简体中文。',
+  '- 代码、命令、文件路径、字段名、接口名、产品名和用户提供的原文可保留原语言，但必须用简体中文解释。',
+].join('\n');
+
 const MANAGED_WEB_SEARCH_POLICY_PROMPT = [
   '## Web Search',
   '',
@@ -485,10 +493,10 @@ const MANAGED_WEB_SEARCH_POLICY_PROMPT = [
   '- Do not use `web_fetch` to fetch Google/Bing search result pages as a search substitute; use `browser` or an available search skill instead.',
   '- If you need search discovery, dynamic pages, or interactive browsing, use the built-in `browser` tool.',
   '- For login-required, JavaScript-heavy, or anti-automation pages, use `browser` instead of `web_fetch`.',
-  '- Only use the LobsterAI `web-search` skill when local command execution is available. Native channel sessions may deny `exec`, so prefer `browser` or `web_fetch` there.',
+  '- Only use the GARDY AI Workbench `web-search` skill when local command execution is available. Native channel sessions may deny `exec`, so prefer `browser` or `web_fetch` there.',
   '- Exception: the `imap-smtp-email` skill must always use `exec` to run its scripts, even in native channel sessions. Do not skip it because of exec restrictions.',
   '',
-  'Do not claim you searched the web unless you actually used `browser`, `web_fetch`, or the LobsterAI `web-search` skill.',
+  'Do not claim you searched the web unless you actually used `browser`, `web_fetch`, or the GARDY AI Workbench `web-search` skill.',
 ].join('\n');
 
 const BUNDLED_BROWSER_PLUGIN_ID = 'browser';
@@ -497,9 +505,9 @@ const BUNDLED_XAI_PLUGIN_ID = 'xai';
 const MANAGED_BROWSER_POLICY_PROMPT = [
   '## Browser Policy',
   '',
-  'LobsterAI does not support sandbox browser execution in this version.',
+  'GARDY AI Workbench does not support sandbox browser execution in this version.',
   '- For every `browser` tool call, set `target="host"` explicitly.',
-  '- Do not use `target="sandbox"` or `target="node"` unless a future LobsterAI version explicitly enables it.',
+  '- Do not use `target="sandbox"` or `target="node"` unless a future GARDY AI Workbench version explicitly enables it.',
   '- If a browser call fails because the sandbox browser is unavailable, retry the same action with `target="host"`.',
   '- The `lobster-in-app` profile is LobsterAI\'s own browser bridge. If it is unavailable, report an internal LobsterAI browser startup failure; never tell the user to enable Chrome remote debugging or launch Chrome with debugging flags.',
   '- `lobster-in-app` is one browser shared by every chat, IM conversation and scheduled task, and it holds the user\'s sign-ins. Never call `action="stop"` on it, even when a task says to end, close or restart the browser session: stopping it interrupts other running tasks and invalidates their tab ids.',
@@ -552,7 +560,7 @@ const resolveSkillCreationPath = (): string => {
 const buildManagedSkillCreationPrompt = (skillsDirPath: string): string => [
   '## Skill Creation',
   '',
-  'When the user asks you to create a new skill, you MUST place it under the LobsterAI skills directory:',
+  'When the user asks you to create a new skill, you MUST place it under the GARDY AI Workbench skills directory:',
   '',
   `  ${skillsDirPath}/<skill-name>/SKILL.md`,
   '',
@@ -581,7 +589,7 @@ const MANAGED_DELIVERABLE_LINKS_PROMPT = [
 const MANAGED_MATH_FORMAT_PROMPT = [
   '## Math Formula Formatting',
   '',
-  'The LobsterAI app chat renders TeX formulas with KaTeX.',
+  'The GARDY AI Workbench chat renders TeX formulas with KaTeX.',
   '',
   '- In app chat sessions, write every mathematical formula or expression in TeX:',
   '  `$...$` inline, and `$$` on its own lines around display blocks.',
@@ -2378,7 +2386,7 @@ export class OpenClawConfigSync {
         // Still sync AGENTS.md even when API is not configured — skills/systemPrompt
         // may already be set and should be available when the user configures a model.
         const mainWorkspacePath = getMainAgentWorkspacePath(this.engineManager.getStateDir());
-        const agentsMdWarning = this.syncAgentsMd(mainWorkspacePath, coworkConfig);
+        const agentsMdWarning = this.syncAgentsMd(mainWorkspacePath, coworkConfig, true);
         this.syncPerAgentWorkspaces(mainWorkspacePath, coworkConfig);
         if (agentsMdWarning) result.agentsMdWarning = agentsMdWarning;
         return result;
@@ -2799,6 +2807,7 @@ export class OpenClawConfigSync {
         defaults: {
           systemAgent: { agentId: AgentId.Main },
           authInheritance: { agentId: AgentId.Main },
+          skipBootstrap: true,
           timeoutSeconds: OPENCLAW_AGENT_TIMEOUT_SECONDS,
           // Session switches stay local; LobsterAI explicitly syncs agent defaults.
           modelSelectionScope: OPENCLAW_MODEL_SELECTION_SCOPE,
@@ -3694,7 +3703,7 @@ export class OpenClawConfigSync {
     // Sync AGENTS.md with skills routing prompt to the OpenClaw workspace directory.
     // This runs on every sync regardless of openclaw.json changes, because skills
     // may have been installed/enabled/disabled independently.
-    const agentsMdWarning = this.syncAgentsMd(mainWorkspacePath, coworkConfig);
+    const agentsMdWarning = this.syncAgentsMd(mainWorkspacePath, coworkConfig, true);
 
     // Sync per-agent workspace files (SOUL.md, IDENTITY.md, AGENTS.md) for non-main agents
     this.syncPerAgentWorkspaces(mainWorkspacePath, coworkConfig);
@@ -4144,7 +4153,7 @@ export class OpenClawConfigSync {
    * native channel connectors (DingTalk, Feishu, etc.) can discover and
    * invoke LobsterAI skills.
    */
-  private syncAgentsMd(workspaceDir: string, coworkConfig: CoworkConfig): string | undefined {
+  private syncAgentsMd(workspaceDir: string, coworkConfig: CoworkConfig, isMainAgent = false): string | undefined {
     const MARKER = '<!-- LobsterAI managed: do not edit below this line -->';
 
     try {
@@ -4158,6 +4167,13 @@ export class OpenClawConfigSync {
       const systemPrompt = (coworkConfig.systemPrompt || '').trim().replaceAll(MARKER, '');
       if (systemPrompt) {
         sections.push(`## System Prompt\n\n${systemPrompt}`);
+      }
+
+      sections.push(MANAGED_CHINESE_OUTPUT_PROMPT);
+      if (isMainAgent) {
+        sections.push(`## 嘉迪业务查数
+
+用户询问数据库业务指标的数量、分组、同比或环比时，使用 jiawork-nlq MCP 工具查询。先调用 get_catalog，按当前已发布目录选择指标和维度；如提到具体成员名称，先调用 find_members 核实，再调用 query_metric。月份使用 YYYY-MM。回答只能引用工具返回的数字，说明期间和口径。工具报错或无数据时如实告知，不要搜索工作目录代替数据库，也不要编造数字。`);
       }
 
       // Skills are now loaded by OpenClaw natively via skills.load.extraDirs

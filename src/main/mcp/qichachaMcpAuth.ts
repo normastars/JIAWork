@@ -87,7 +87,7 @@ function startCallbackServer(expectedState: string): Promise<{ redirectUri: stri
         return;
       }
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-      res.end('<h1>Qichacha authorization complete</h1><p>You can return to LobsterAI.</p>');
+      res.end('<h1>Qichacha authorization complete</h1><p>You can return to GARDY AI Workbench.</p>');
     });
 
     server.once('error', reject);

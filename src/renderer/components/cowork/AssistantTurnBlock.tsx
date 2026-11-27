@@ -13,33 +13,17 @@ import {
 } from '../../../shared/cowork/errorDetail';
 import type { CoworkGoal } from '../../../shared/cowork/goal';
 import { hasLayerDecompositionWarning } from '../../../shared/media/warnings';
-import purchaseOfferFirstBadge from '../../assets/purchase-offer-first.svg';
-import purchaseOfferLimitedBadge from '../../assets/purchase-offer-limited.svg';
 import { dedupeArtifactsForDisplay, orderArtifactsByReplyReferences } from '../../services/artifactParser';
-import { getPortalPricingUrl } from '../../services/endpoints';
 import { i18nService } from '../../services/i18n';
-import { type LogEventAction, LogReporterAction } from '../../services/logReporter';
-import { LowCreditOfferVariant, reportLowCreditPurchaseEvent } from '../../services/lowCreditPurchaseAnalytics';
-import {
-  formatPurchaseOfferDiscount,
-  getPurchaseOfferDiscountRate,
-  getPurchaseOfferPortalTab,
-  getPurchaseOfferRemainingMs,
-  isPurchaseOfferActive,
-} from '../../services/lowCreditPurchaseOffer';
 import type { RootState } from '../../store';
-import type { LowCreditPurchaseOffer } from '../../store/slices/authSlice';
 import { type Artifact, ArtifactTypeValue } from '../../types/artifact';
 import type { CoworkMessage, CoworkMessageMetadata } from '../../types/cowork';
 import { revealLocalPathWithToast } from '../../utils/localFileActions';
 import { ArtifactPreviewCard } from '../artifacts';
 import InlineImageGallery from '../artifacts/imageEditor/InlineImageGallery';
-import AbnormalIcon from '../icons/AbnormalIcon';
 import ExclamationTriangleIcon from '../icons/ExclamationTriangleIcon';
 import InformationCircleIcon from '../icons/InformationCircleIcon';
 import MarkdownContent from '../MarkdownContent';
-import PurchaseOfferCountdown from '../PurchaseOfferCountdown';
-import { useLowCreditOfferExposure } from '../useLowCreditOfferExposure';
 import ActivityGroupBlock from './ActivityGroupBlock';
 import { ActivityStepLine } from './ActivityStepLine';
 import AssistantMessageItem from './AssistantMessageItem';
@@ -295,144 +279,11 @@ const isCreditQuotaExhaustedKey = (key: string | null): boolean => (
   || key === CoworkErrorI18nKey.FreeQuotaExhausted
 );
 
-const logCreditQuotaBannerEvent = (
-  level: 'debug' | 'warn',
-  message: string,
-  error?: unknown,
-): void => {
-  if (level === 'warn') {
-    if (error === undefined) {
-      console.warn(`[CreditQuotaBanner] ${message}`);
-    } else {
-      console.warn(`[CreditQuotaBanner] ${message}`, error);
-    }
-  } else {
-    console.debug(`[CreditQuotaBanner] ${message}`);
-  }
-
-  try {
-    const errorSuffix = error instanceof Error ? `: ${error.message}` : '';
-    window.electron?.log?.fromRenderer?.(
-      level,
-      'CreditQuotaBanner',
-      `${message}${errorSuffix}`.slice(0, 500),
-    );
-  } catch {
-    // Renderer diagnostics must never interrupt the conversation UI.
-  }
-};
-
-const CreditQuotaExhaustedBanner: React.FC<{ offer: LowCreditPurchaseOffer | null; creditsRemaining: number }> = ({ offer, creditsRemaining }) => {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const currentTime = Date.now();
-    setNow(currentTime);
-    if (!offer?.expiresAtEpochMs) return undefined;
-    const remainingMs = getPurchaseOfferRemainingMs(offer, currentTime);
-    if (remainingMs <= 0) return undefined;
-    const timer = window.setTimeout(() => setNow(Date.now()), remainingMs + 1);
-    return () => window.clearTimeout(timer);
-  }, [offer]);
-  const portalTab = offer ? getPurchaseOfferPortalTab(offer) : 'subscription';
-  const rate = offer
-    ? getPurchaseOfferDiscountRate(offer, portalTab === 'boost' ? 'boost_pack' : 'subscription')
-    : null;
-  const hasOffer = isPurchaseOfferActive(offer, now) && rate !== null;
-  const isFirstPurchase = hasOffer && offer?.offerType === 'first_purchase';
-  const displayVariant = !hasOffer
-    ? LowCreditOfferVariant.NoDiscount
-    : isFirstPurchase
-      ? LowCreditOfferVariant.FirstPurchase
-      : LowCreditOfferVariant.LimitedDiscount;
-  const exposureKey = [
-    displayVariant,
-    displayVariant === LowCreditOfferVariant.NoDiscount ? '' : offer?.campaignCode,
-    displayVariant === LowCreditOfferVariant.NoDiscount ? '' : offer?.offerToken,
-    displayVariant === LowCreditOfferVariant.NoDiscount ? '' : offer?.windowCount,
-  ].join(':');
-  const report = (action: LogEventAction, offerTokenAttached?: boolean): void => {
-    reportLowCreditPurchaseEvent(action, {
-      offer,
-      variant: displayVariant,
-      creditsRemaining,
-      boostDiscountRate: hasOffer && portalTab === 'boost' ? rate : undefined,
-      subscriptionDiscountRate: hasOffer && portalTab === 'subscription' ? rate : undefined,
-      portalTab,
-      offerTokenAttached,
-    });
-  };
-  const { elementRef, ensureExposure } = useLowCreditOfferExposure(exposureKey, () => {
-    report(LogReporterAction.LowCreditTaskOfferExposure);
-  });
-  const handlePurchase = async () => {
-    const active = isPurchaseOfferActive(offer) && rate !== null;
-    const pricingUrl = getPortalPricingUrl(undefined, {
-      offerToken: active ? offer?.offerToken ?? undefined : undefined,
-      tab: portalTab,
-    });
-    ensureExposure();
-    report(LogReporterAction.LowCreditTaskPurchaseClick, active);
-    logCreditQuotaBannerEvent('debug', 'purchase action clicked');
-    try {
-      const result = await window.electron?.shell?.openExternal(pricingUrl);
-      if (!result?.success) {
-        logCreditQuotaBannerEvent(
-          'warn',
-          `pricing page open failed: ${result?.error ?? 'unknown error'}`,
-        );
-      }
-    } catch (error) {
-      logCreditQuotaBannerEvent('warn', 'pricing page open threw an error', error);
-    }
-  };
-
-  return (
-    <div ref={elementRef} className="rounded-xl bg-surface px-4 py-3 shadow-sm">
-      <div className="flex items-center gap-3">
-        {hasOffer ? (
-          <div className="relative h-14 w-14 shrink-0">
-            <img
-              src={isFirstPurchase ? purchaseOfferFirstBadge : purchaseOfferLimitedBadge}
-              alt=""
-              className="h-full w-full object-contain"
-            />
-            <div className="absolute inset-0 flex flex-col items-center justify-center pt-0.5 text-[10px] font-semibold leading-3 text-white">
-              <span>{i18nService.t(isFirstPurchase ? 'lowCreditOfferBadgeFirstTop' : 'lowCreditOfferBadgeLimitedTop')}</span>
-              <span>{i18nService.t(isFirstPurchase ? 'lowCreditOfferBadgeFirstBottom' : 'lowCreditOfferBadgeLimitedBottom')}</span>
-            </div>
-          </div>
-        ) : (
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-surface-raised text-secondary">
-            <AbnormalIcon className="h-6 w-6" />
-          </div>
-        )}
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <div className="text-sm font-semibold leading-5 text-foreground">
-              {hasOffer && rate !== null
-                ? i18nService.t(isFirstPurchase ? 'lowCreditOfferTaskFirstTitle' : 'lowCreditOfferTaskReturningTitle')
-                  .replace('{discount}', formatPurchaseOfferDiscount(rate))
-                : i18nService.t('coworkCreditQuotaBannerTitle')}
-            </div>
-            {hasOffer && !isFirstPurchase && offer && (
-              <PurchaseOfferCountdown offer={offer} />
-            )}
-          </div>
-          <div className="mt-1 text-xs leading-5 text-secondary">
-            {i18nService.t('coworkCreditQuotaBannerDescription')}
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={handlePurchase}
-          className="ml-2 inline-flex h-8 shrink-0 items-center justify-center rounded-full bg-foreground px-5 text-xs font-medium text-background transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-        >
-          {i18nService.t('coworkCreditQuotaBannerAction')}
-        </button>
-      </div>
-    </div>
-  );
-};
+const CreditQuotaExhaustedNotice: React.FC = () => (
+  <div role="alert" className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-foreground">
+    {i18nService.t('coworkCreditQuotaBannerTitle')}
+  </div>
+);
 
 // ── SystemErrorTechnicalDetail ───────────────────────────────────────────────
 
@@ -754,7 +605,7 @@ const AssistantTurnBlock: React.FC<{
     if (isCreditQuotaExhaustedKey(errorKey)) {
       return hideCreditQuotaBanner
         ? null
-        : <CreditQuotaExhaustedBanner offer={creditQuotaSnapshot.purchaseOffer} creditsRemaining={creditQuotaSnapshot.creditsRemaining} />;
+        : <CreditQuotaExhaustedNotice />;
     }
     const displayContent = getSystemMessageDisplayContent(message, normalizedContent);
     const content = mapDisplayText ? mapDisplayText(displayContent) : displayContent;

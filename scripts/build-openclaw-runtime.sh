@@ -115,9 +115,19 @@ READVER
 PATCHES_DIR="$ELECTRON_ROOT/scripts/patches/$DESIRED_VERSION"
 PATCH_HASH=""
 if [[ -d "$PATCHES_DIR" ]]; then
-  PATCH_HASH=$(cat "$PATCHES_DIR"/*.patch 2>/dev/null | sha256sum | cut -d' ' -f1)
+  PATCH_HASH=$(cat "$PATCHES_DIR"/*.patch 2>/dev/null | node -e '
+const crypto = require("crypto");
+const hash = crypto.createHash("sha256");
+process.stdin.on("data", chunk => hash.update(chunk));
+process.stdin.on("end", () => process.stdout.write(hash.digest("hex")));
+')
 fi
-BUILD_SCRIPT_HASH=$(cat "$SCRIPT_DIR/build-openclaw-runtime.sh" "$SCRIPT_DIR/pack-openclaw-workspace-deps.cjs" | sha256sum | cut -d' ' -f1)
+BUILD_SCRIPT_HASH=$(cat "$SCRIPT_DIR/build-openclaw-runtime.sh" "$SCRIPT_DIR/pack-openclaw-workspace-deps.cjs" | node -e '
+const crypto = require("crypto");
+const hash = crypto.createHash("sha256");
+process.stdin.on("data", chunk => hash.update(chunk));
+process.stdin.on("end", () => process.stdout.write(hash.digest("hex")));
+')
 
 if [[ -n "$DESIRED_VERSION" && "${OPENCLAW_FORCE_BUILD:-}" != "1" ]]; then
   BUILD_INFO="$OUT_DIR/runtime-build-info.json"

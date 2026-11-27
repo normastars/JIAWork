@@ -1,7 +1,8 @@
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
-import React, { useCallback, useEffect, useMemo,useRef, useState } from 'react';
-import { useDispatch,useSelector } from 'react-redux';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 
+import gardyEnterpriseManifest from '../../enterprise-configs/gardy/manifest.json';
 import { ExpertUiEvent } from '../shared/agent/presets';
 import { AppIpcChannel, type OpenSettingsRequest, OpenSettingsTab } from '../shared/app/constants';
 import {
@@ -15,6 +16,7 @@ import {
 import { BrowserPasskeyUiEvent } from '../shared/browserWebAccess/passkeys';
 import { OpenClawQuestion } from '../shared/cowork/openclawQuestion';
 import { DesktopCompanionMainPage } from '../shared/desktopCompanion/constants';
+import type { EnterpriseWorkbenchConfig } from '../shared/enterprise/workbench';
 import { ENABLE_EXPERT_PLAZA_UI } from '../shared/featureFlags';
 import { FeedbackUiEvent } from '../shared/feedback/constants';
 import { ImageCreation } from '../shared/imageCreation/constants';
@@ -45,7 +47,6 @@ import EngineFailureOverlay from './components/cowork/EngineFailureOverlay';
 import EngineStartupOverlay from './components/cowork/EngineStartupOverlay';
 import ExpertPlazaView from './components/experts/ExpertPlazaView';
 import FeedbackDialog from './components/feedback/FeedbackDialog';
-import LaunchAdModal from './components/LaunchAdModal';
 import LibraryView from './components/library/LibraryView';
 import FirstRunLoginIntroduction from './components/login/FirstRunLoginIntroduction';
 import { ScheduledTasksView } from './components/scheduledTasks';
@@ -54,8 +55,6 @@ import Sidebar from './components/Sidebar';
 import { SkillsAndConnectorsView, SkillsConnectorsSection } from './components/skillsAndConnectors';
 import SkinBackdrop, { SkinBackdropVariant } from './components/skin/SkinBackdrop';
 import SkinPresentationScope from './components/skin/SkinPresentationScope';
-import StartupCreditCampaign from './components/StartupCreditCampaign';
-import SubscriptionTrialCampaign from './components/SubscriptionTrialCampaign';
 import Toast, { type ToastEventDetail } from './components/Toast';
 import AppUpdateBadge from './components/update/AppUpdateBadge';
 import AppUpdateBlockingPanel from './components/update/AppUpdateBlockingPanel';
@@ -71,7 +70,7 @@ import AppUpdateModal from './components/update/AppUpdateModal';
 import { shouldShowAppUpdateNotice } from './components/update/appUpdateNoticeState';
 import WindowsAppTitleBar from './components/window/WindowsAppTitleBar';
 import { defaultConfig, getProviderDisplayName, ShortcutAction } from './config';
-import { selectIsEnterpriseAccount } from './features/enterpriseAccount/selectors';
+import { APP_NAME } from './constants/app';
 import { SkinProvider } from './providers/SkinProvider';
 import { apiService } from './services/api';
 import { applyAppConfigToStore } from './services/appConfigModels';
@@ -79,8 +78,9 @@ import { AppDeepLinkEvent, type AppDeepLinkTarget, describeAppDeepLinkTarget } f
 import { authService } from './services/auth';
 import { configService } from './services/config';
 import { coworkService } from './services/cowork';
+import { reconcileEnterpriseModels } from './services/enterpriseModelAccess';
 import { openExpertDraft } from './services/expertOnboarding';
-import { i18nService } from './services/i18n';
+import { i18nService, type LanguageType } from './services/i18n';
 import type { PreparedImageExampleReference } from './services/imageCreationDraft';
 import {
   beginLatestAsyncRequest,
@@ -188,7 +188,21 @@ const logAppUpdateRendererLifecycle = (
   }
 };
 
+type EnterpriseUiAction = 'hide' | 'disable' | 'readonly';
+
+type EnterpriseRendererConfig = {
+  language?: LanguageType;
+  ui?: Record<string, EnterpriseUiAction>;
+  disableUpdate?: boolean;
+  disableTelemetry?: boolean;
+  autoAcceptPrivacy?: boolean;
+  workbench?: EnterpriseWorkbenchConfig;
+};
+
+const DEFAULT_GARDY_ENTERPRISE_CONFIG = gardyEnterpriseManifest as EnterpriseRendererConfig;
+
 const App: React.FC = () => {
+  const activeAppName = APP_NAME;
   const [showSettings, setShowSettings] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [settingsOptions, setSettingsOptions] = useState<SettingsOpenOptions & { requestId: number }>({ requestId: 0 });
@@ -227,21 +241,21 @@ const App: React.FC = () => {
   });
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showUpdateInstallConfirm, setShowUpdateInstallConfirm] = useState(false);
-  const [isUpdateCardExpanded, setIsUpdateCardExpanded] = useState(false);
   const [isUserInitiatedUpdateFlowActive, setIsUserInitiatedUpdateFlowActive] = useState(false);
   const [privacyAgreed, setPrivacyAgreed] = useState<boolean | null>(null);
-  const [isLaunchAdOpen, setIsLaunchAdOpen] = useState(false);
   // An in-app link followed while the engine startup screen still covers the app.
   const [startupDestination, setStartupDestination] = useState<{
     target: AppDeepLinkTarget;
     previousView: MainView;
   } | null>(null);
-  const [trialTaskCreatedSignal, setTrialTaskCreatedSignal] = useState(0);
   const [isNewUserOnboardingDismissed, setIsNewUserOnboardingDismissed] = useState(false);
-  const [enterpriseConfig, setEnterpriseConfig] = useState<{
-    ui?: Record<string, 'hide' | 'disable' | 'readonly'>;
-    disableUpdate?: boolean;
-  } | null>(null);
+  const [enterpriseConfig, setEnterpriseConfig] = useState<EnterpriseRendererConfig | null>(null);
+  const activeEnterpriseConfig = useMemo<EnterpriseRendererConfig>(() => ({
+    ...DEFAULT_GARDY_ENTERPRISE_CONFIG,
+    ...enterpriseConfig,
+    ui: { ...DEFAULT_GARDY_ENTERPRISE_CONFIG.ui, ...enterpriseConfig?.ui },
+    workbench: enterpriseConfig?.workbench ?? DEFAULT_GARDY_ENTERPRISE_CONFIG.workbench,
+  }), [enterpriseConfig]);
   const [enterpriseConfigLoaded, setEnterpriseConfigLoaded] = useState(false);
   const toastTimerRef = useRef<number | null>(null);
   const askAiFocusTimerRef = useRef<number | null>(null);
@@ -262,14 +276,13 @@ const App: React.FC = () => {
   const pendingPermission = useSelector(selectFirstCurrentSessionPendingPermission);
   const pendingPermissions = useSelector(selectPendingPermissions);
   const authUser = useSelector((state: RootState) => state.auth.user);
-  const isEnterpriseAccount = useSelector(selectIsEnterpriseAccount);
   const isWindows = window.electron.platform === 'win32';
   const [minimizedPermissionIds, setMinimizedPermissionIds] = useState<string[]>([]);
   const isPendingPermissionMinimized = pendingPermission
     ? minimizedPermissionIds.includes(pendingPermission.requestId)
     : false;
   const isPermissionModalOpen = pendingPermission !== null && !isPendingPermissionMinimized;
-  const isUpdateInteractionBlocked = shouldBlockAppInteractionForUpdate(
+  const isUpdateInteractionBlocked = !activeEnterpriseConfig.disableUpdate && shouldBlockAppInteractionForUpdate(
     isUserInitiatedUpdateFlowActive,
     appUpdateState.status,
   );
@@ -458,7 +471,7 @@ const App: React.FC = () => {
             const requestId = beginLatestAsyncRequest(privacyGateRequestIdRef);
             const agreed = await window.electron.store.get('privacy_agreed');
             if (!isLatestAsyncRequest(privacyGateRequestIdRef, requestId)) return;
-            setPrivacyAgreed(agreed === true);
+            setPrivacyAgreed(agreed === true || DEFAULT_GARDY_ENTERPRISE_CONFIG.autoAcceptPrivacy === true);
           }, {
             attempts: INIT_REQUIRED_GATE_MAX_ATTEMPTS,
             firstTimeoutMs: INIT_STEP_RETRY_TIMEOUT_MS,
@@ -506,7 +519,7 @@ const App: React.FC = () => {
           mode: repairedConfig.theme,
           themeId: repairedConfig.themeId,
         });
-        i18nService.setLanguage(repairedConfig.language, { persist: false });
+        i18nService.setLanguage(activeEnterpriseConfig.language ?? repairedConfig.language, { persist: false });
         mark(`config repaired and applied (${repairedModels.length} provider models)`);
         return;
       }
@@ -523,6 +536,9 @@ const App: React.FC = () => {
           firstTimeoutMs: initTimeoutMs,
         });
         mark(i18nReady ? 'i18nService.initialize done' : 'i18nService.initialize degraded — using persisted language hint');
+        if (activeEnterpriseConfig.language) {
+          i18nService.setLanguage(activeEnterpriseConfig.language, { persist: false });
+        }
 
         // Single attempt: authService.init() re-entry tears down listeners, so a
         // concurrent retry could stack them; its in-flight run self-completes
@@ -536,6 +552,17 @@ const App: React.FC = () => {
         coreStartupServicesInitializedRef.current = true;
       }
 
+      if (configReady && activeEnterpriseConfig.ui?.login === 'hide') {
+        try {
+          const configured = configService.getConfig();
+          const resolved = await reconcileEnterpriseModels(configured);
+          if (resolved !== configured) {
+            await configService.updateConfig({ providers: resolved.providers, model: resolved.model });
+          }
+        } catch (error) {
+          console.warn('[Gardy] failed to reconcile allowed models:', error);
+        }
+      }
       const providerModels = applyConfigToApp(mark);
       mark('model resolution done');
 
@@ -577,7 +604,7 @@ const App: React.FC = () => {
     } finally {
       initPassRunningRef.current = false;
     }
-  }, [applyConfigToApp, waitWithTimeout]);
+  }, [activeEnterpriseConfig.language, activeEnterpriseConfig.ui?.login, applyConfigToApp, waitWithTimeout]);
 
   useEffect(() => {
     runInitPassRef.current = (mode: InitPassMode) => { void runInitPass(mode); };
@@ -912,7 +939,6 @@ const App: React.FC = () => {
   }, [isSidebarCollapsed, mainView]);
 
   const handleNewChat = useCallback(() => {
-    setTrialTaskCreatedSignal(value => value + 1);
     // Only clear when already on home (no session) — preserve __home__ draft when returning from a session
     const shouldClearInput = mainView === MainView.Cowork && !currentSessionId;
     coworkService.clearSession({ restoreAgentSkills: true });
@@ -1685,7 +1711,7 @@ const App: React.FC = () => {
     if (!isInitialized) return;
 
     // Enterprise mode: completely skip update detection
-    if (enterpriseConfig?.disableUpdate) return;
+    if (activeEnterpriseConfig.disableUpdate) return;
 
     let cancelled = false;
     let lastCheckTime = 0;
@@ -1739,7 +1765,7 @@ const App: React.FC = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('online', handleOnline);
     };
-  }, [isInitialized, runUpdateCheck, enterpriseConfig]);
+  }, [activeEnterpriseConfig.disableUpdate, isInitialized, runUpdateCheck]);
 
   // 根据场景选择使用哪个权限组件。最小化时保持组件挂载（仅视觉隐藏），
   // 避免重新展开后丢失用户已选择/已输入的内容；key 按 requestId 隔离不同请求的状态。
@@ -1810,7 +1836,6 @@ const App: React.FC = () => {
       updateState={appUpdateState}
       onUpdate={handleConfirmUpdate}
       onShowDetails={handleOpenUpdateModal}
-      onExpandedChange={setIsUpdateCardExpanded}
     />
   ) : null;
   const canUseWindowsTopBarActions = isInitialized && !initError && !isUpdateInteractionBlocked;
@@ -1818,6 +1843,7 @@ const App: React.FC = () => {
   const collapsedHeaderUpdateBadge = isSidebarCollapsed && !isWindows ? updateBadge : null;
   const windowsStandaloneTitleBar = isWindows ? (
     <WindowsAppTitleBar
+      title={activeAppName}
       isOverlayActive={isOverlayActive}
       isSidebarCollapsed={isSidebarCollapsed}
       sidebarWidth={sidebarWidth}
@@ -1888,12 +1914,13 @@ const App: React.FC = () => {
           {showSettings && (
             <SkinProvider>
               <Settings
+                appName={activeAppName}
                 onClose={handleCloseSettings}
                 initialTab={settingsOptions.initialTab}
                 initialTabRequestId={settingsOptions.requestId}
                 notice={settingsOptions.notice}
                 onUpdateFound={handleUpdateFound}
-                enterpriseConfig={enterpriseConfig}
+                enterpriseConfig={activeEnterpriseConfig}
               />
             </SkinProvider>
           )}
@@ -1917,19 +1944,6 @@ const App: React.FC = () => {
           onClose={() => setToastMessage(null)}
         />
       )}
-      <SubscriptionTrialCampaign
-        privacyAgreed={privacyAgreed}
-        taskCreatedSignal={trialTaskCreatedSignal}
-        enabled={privacyAgreed === true && !isOverlayActive && hasResolvedEngineStartupOverlayState && !isEngineStartupOverlayVisible}
-      />
-      <LaunchAdModal
-        enabled={privacyAgreed === true && !isOverlayActive}
-        onOpenChange={setIsLaunchAdOpen}
-      />
-      <StartupCreditCampaign
-        enabled={privacyAgreed === true && !isEnterpriseAccount}
-        deferred={isLaunchAdOpen}
-      />
       {windowsStandaloneTitleBar}
       <div
         className="relative flex flex-1 min-h-0 overflow-hidden"
@@ -1955,9 +1969,10 @@ const App: React.FC = () => {
           onTaskFilterSummaryChange={setHasUnreadCompletedTasks}
           onWidthChange={setSidebarWidth}
           updateNotice={!isSidebarCollapsed && !isUpdateInteractionBlocked ? updateCard : null}
-          hideAdBanner={isUpdateCardExpanded}
-          hideLogin={enterpriseConfig?.ui?.login === 'hide'}
-          isEngineStartupOverlayVisible={isEngineStartupOverlayVisible}
+          hideLogin={activeEnterpriseConfig.ui?.login === 'hide'}
+          hideKits={activeEnterpriseConfig.ui?.kits === 'hide'}
+          hideSkills={activeEnterpriseConfig.ui?.skills === 'hide'}
+          hideMcp={activeEnterpriseConfig.ui?.mcp === 'hide'}
         />
         <div className="flex-1 min-w-0">
           {/* The main area meets the sidebar edge to edge (no inset card
@@ -2021,9 +2036,11 @@ const App: React.FC = () => {
               />
             ) : (
               <CoworkView
+                enterpriseWorkbench={activeEnterpriseConfig.workbench}
                 onRequestAppSettings={handleShowSettings}
-                onShowSkills={handleShowSkills}
-                onShowKits={handleShowKits}
+                onShowSkills={activeEnterpriseConfig.ui?.skills === 'hide' ? undefined : handleShowSkills}
+                onShowKits={activeEnterpriseConfig.ui?.kits === 'hide' ? undefined : handleShowKits}
+                showVoiceInput={activeEnterpriseConfig.ui?.login !== 'hide'}
                 isSidebarCollapsed={isSidebarCollapsed}
                 onToggleSidebar={handleToggleSidebar}
                 onNewChat={handleNewChat}
@@ -2053,13 +2070,14 @@ const App: React.FC = () => {
       {/* 设置窗口显示在所有主内容之上，但不影响主界面的交互 */}
       {showSettings && (
         <Settings
+          appName={activeAppName}
           onClose={handleCloseSettings}
           onStartAiSkin={handleStartAiSkinFromSettings}
           initialTab={settingsOptions.initialTab}
           initialTabRequestId={settingsOptions.requestId}
           notice={settingsOptions.notice}
           onUpdateFound={handleUpdateFound}
-          enterpriseConfig={enterpriseConfig}
+          enterpriseConfig={activeEnterpriseConfig}
         />
       )}
       {showFeedback && <FeedbackDialog onClose={() => setShowFeedback(false)} />}

@@ -13,6 +13,7 @@ const LOGO_RINGS: Array<{ size: number; opacity: number }> = [
 ];
 
 interface WelcomeDialogProps {
+  appName: string;
   onLogin: () => void;
   loginPending: boolean;
   onCancelLogin: () => void;
@@ -22,6 +23,7 @@ interface WelcomeDialogProps {
 // First-launch gate merging terms consent and login into one screen:
 // continuing via either action counts as accepting the service agreement.
 const WelcomeDialog: React.FC<WelcomeDialogProps> = ({
+  appName,
   onLogin,
   loginPending,
   onCancelLogin,
@@ -75,8 +77,8 @@ const WelcomeDialog: React.FC<WelcomeDialogProps> = ({
             ))}
           </div>
           <img
-            src="logo.png"
-            alt="LobsterAI"
+            src="gardy-mark.svg"
+            alt={appName}
             width={72}
             height={72}
             className="relative rounded-2xl select-none"
@@ -109,11 +111,6 @@ const WelcomeDialog: React.FC<WelcomeDialogProps> = ({
             </>
           ) : (
             <>
-              {/* promo: quiet tinted chip sitting right above login, so the incentive reads as "log in to get it" */}
-              <div className="mb-3 px-3 py-1 rounded-full border text-xs font-medium select-none text-[#E5482C] bg-[#FF5A36]/10 border-[#FF5A36]/20 dark:text-[#FF9275] dark:bg-[#FF6D4A]/[0.14] dark:border-[#FF6D4A]/30">
-                {i18nService.t('welcomePromo')}
-              </div>
-
               {/* primary: login */}
               <button
                 onClick={onLogin}

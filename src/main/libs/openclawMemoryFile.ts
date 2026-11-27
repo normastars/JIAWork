@@ -565,8 +565,10 @@ export function migrateSqliteToMemoryMd(
 // Bootstrap file management (IDENTITY.md, USER.md, SOUL.md)
 // ---------------------------------------------------------------------------
 
-const DEFAULT_IDENTITY_ZH = '你的名字是 LobsterAI，一个由网易有道开发的全场景个人助理 Agent。你 7×24 小时在线，能够自主处理日常生产力任务，包括数据分析、PPT 制作、视频生成、文档撰写、信息搜索、邮件工作流、定时任务等。你和用户共享同一个工作空间，协同完成用户的目标。';
-const DEFAULT_IDENTITY_EN = 'Your name is LobsterAI, a full-scenario personal assistant agent developed by NetEase Youdao. You are available 24/7 and can autonomously handle everyday productivity tasks, including data analysis, PPT creation, video generation, document writing, information search, email workflows, scheduled jobs, and more. You and the user share the same workspace, collaborating to achieve the user\'s goals.';
+const LEGACY_DEFAULT_IDENTITY_ZH = '你的名字是嘉迪 AI 工作台，是为嘉迪团队量身定制的智能办公助手。你能够协助处理数据分析、PPT 制作、文档撰写、信息检索、邮件工作流和定时任务等日常工作。你和用户共享同一个工作空间，依据用户提供的资料、业务口径与流程协同完成目标，不擅自补造业务规则或数据。';
+const LEGACY_DEFAULT_IDENTITY_EN = 'Your name is GARDY AI Workbench, an intelligent office assistant tailored for the GARDY team. You help with everyday work such as data analysis, presentation creation, document drafting, information research, email workflows, and scheduled tasks. You share a workspace with the user and follow the materials, business definitions, and processes they provide without inventing rules or data.';
+const DEFAULT_IDENTITY_ZH = LEGACY_DEFAULT_IDENTITY_ZH.replace('智能办公助手', '智能办公专家');
+const DEFAULT_IDENTITY_EN = LEGACY_DEFAULT_IDENTITY_EN.replace('intelligent office assistant', 'intelligent office expert');
 
 function getDefaultIdentity(): string {
   try {
@@ -617,12 +619,14 @@ export function writeBootstrapFile(workingDirectory: string | undefined, filenam
 
 /**
  * Ensure IDENTITY.md exists in the workspace with built-in default content.
- * Only writes if the file doesn't exist or is empty — never overwrites user content.
+ * Writes for missing files or the unchanged legacy default; preserves edits.
  */
 export function ensureDefaultIdentity(workingDirectory: string | undefined): void {
   const filePath = resolveBootstrapFilePath(workingDirectory, 'IDENTITY.md');
   const existing = readFileOrEmpty(filePath);
-  if (existing.trim()) return; // already has content, don't overwrite
+  if (existing.trim()
+    && existing.trim() !== LEGACY_DEFAULT_IDENTITY_ZH
+    && existing.trim() !== LEGACY_DEFAULT_IDENTITY_EN) return;
   const defaultContent = getDefaultIdentity();
   ensureDir(filePath);
   fs.writeFileSync(filePath, defaultContent, 'utf8');

@@ -2,13 +2,6 @@ import { contextBridge, ipcRenderer, webFrame, webUtils } from 'electron';
 
 import type { GenerateSessionTitleRequest } from '../common/sessionTitle';
 import { IpcChannel as ScheduledTaskIpc } from '../scheduledTask/constants';
-import { AccountMenuMoreIpc } from '../shared/accountMenuMore/constants';
-import {
-  type ActivityHostExecuteActionInput,
-  type ActivityHostGetContextInput,
-  type ActivityHostGetSlotInput,
-  ActivityIpc,
-} from '../shared/activity/constants';
 import type { AgentModelSelectionMode } from '../shared/agent/constants';
 import { AgentIpcChannel, AgentLegacyIdentityCleanupStatus } from '../shared/agent/constants';
 import type { AgentModelSelection } from '../shared/agent/modelSelection';
@@ -131,6 +124,7 @@ import type {
   MediaType,
 } from '../shared/media/defaultPolicy';
 import { type ModelPresetId, ModelPresetIpc } from '../shared/modelPresets/constants';
+import { NlqIpcChannel } from '../shared/nlq/constants';
 import { OpenClawEngineIpc } from '../shared/openclawEngine/constants';
 import { OpenClawUserConfigIpc } from '../shared/openclawUserConfig/constants';
 import { PermissionIpcChannel } from '../shared/permissions/constants';
@@ -168,7 +162,6 @@ import type {
   SkinGetActiveResponse,
   SkinListResponse,
 } from '../shared/skin/types';
-import { SubscriptionTrialIpc } from '../shared/subscriptionTrial/constants';
 import { createMessageSpeechBridge } from './conversation/messageSpeechPreload';
 import { createLanguageToolsBridge } from './desktopCompanion/languageToolsPreload';
 import { createImageEditingBridge } from './imageEditingPreload';
@@ -261,6 +254,11 @@ contextBridge.exposeInMainWorld('electron', {
   } satisfies DesktopCompanionBridge,
   platform: process.platform,
   arch: process.arch,
+  nlq: {
+    status: () => ipcRenderer.invoke(NlqIpcChannel.Status),
+    schema: () => ipcRenderer.invoke(NlqIpcChannel.Schema),
+    model: () => ipcRenderer.invoke(NlqIpcChannel.Model),
+  },
   store: {
     get: (key: string) => ipcRenderer.invoke('store:get', key),
     set: (key: string, value: any) => ipcRenderer.invoke('store:set', key, value),
@@ -1298,20 +1296,6 @@ contextBridge.exposeInMainWorld('electron', {
   feedback: {
     submit: (input: FeedbackInput) => ipcRenderer.invoke(FeedbackIpc.Submit, input),
   },
-  subscriptionTrial: {
-    status: () => ipcRenderer.invoke(SubscriptionTrialIpc.Status),
-  },
-  accountMenuMore: {
-    get: () => ipcRenderer.invoke(AccountMenuMoreIpc.Get),
-  },
-  activity: {
-    getSlot: (input: ActivityHostGetSlotInput) =>
-      ipcRenderer.invoke(ActivityIpc.HostGetSlot, input),
-    getContext: (input: ActivityHostGetContextInput) =>
-      ipcRenderer.invoke(ActivityIpc.HostGetContext, input),
-    executeAction: (input: ActivityHostExecuteActionInput) =>
-      ipcRenderer.invoke(ActivityIpc.HostExecuteAction, input),
-  },
   appUpdate: {
     getState: () => ipcRenderer.invoke(AppUpdateIpc.GetState),
     checkNow: (options?: { manual?: boolean; userId?: string | null }) =>
@@ -1578,11 +1562,6 @@ contextBridge.exposeInMainWorld('electron', {
     getModels: () => ipcRenderer.invoke(AuthIpcChannel.GetModels),
     getPricingCatalog: () => ipcRenderer.invoke(AuthIpcChannel.GetPricingCatalog),
     getProfileSummary: () => ipcRenderer.invoke(AuthIpcChannel.GetProfileSummary),
-    claimCreditsFinalReward: (campaignCode: string) =>
-      ipcRenderer.invoke(AuthIpcChannel.ClaimCreditsFinalReward, { campaignCode }),
-    getActiveClientBanner: () => ipcRenderer.invoke(AuthIpcChannel.GetActiveClientBanner),
-    getActiveClientBanners: () => ipcRenderer.invoke(AuthIpcChannel.GetActiveClientBanners),
-    getClientBannerSnapshot: (placement?: string) => ipcRenderer.invoke(AuthIpcChannel.GetClientBannerSnapshot, placement),
     getPendingCallback: () => ipcRenderer.invoke(AuthIpcChannel.GetPendingCallback),
     onCallback: (callback: (data: { code: string }) => void) => {
       const handler = (_event: any, data: { code: string }) => callback(data);

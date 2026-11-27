@@ -119,15 +119,20 @@ function verifyPreinstalledPlugins(runtimeRoot, buildHint) {
 
   const extensionsDir = path.join(runtimeRoot, 'third-party-extensions');
   const missing = [];
+  const missingOptional = [];
 
   for (const plugin of plugins) {
     if (!plugin.id) continue;
     const pluginDir = resolvePreinstalledPluginDir(runtimeRoot, plugin);
     if (!existsSync(pluginDir)) {
-      missing.push(plugin.id);
+      (plugin.optional ? missingOptional : missing).push(plugin.id);
     } else {
       verifyRuntimeBundledPlugin(runtimeRoot, plugin);
     }
+  }
+
+  if (missingOptional.length > 0) {
+    console.warn(`[electron-builder-hooks] Optional OpenClaw plugins unavailable: ${missingOptional.join(', ')}`);
   }
 
   if (missing.length > 0) {
@@ -144,7 +149,7 @@ function verifyPreinstalledPlugins(runtimeRoot, buildHint) {
     plugins.filter(plugin => plugin.runtimeBundled === true),
   );
 
-  console.log(`[electron-builder-hooks] Verified ${plugins.length} preinstalled OpenClaw plugin(s).`);
+  console.log(`[electron-builder-hooks] Verified ${plugins.length - missingOptional.length} preinstalled OpenClaw plugin(s).`);
 }
 
 // A plugin whose node_modules still carries the openclaw peer dependency tree

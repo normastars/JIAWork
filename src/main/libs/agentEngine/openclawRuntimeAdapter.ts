@@ -101,6 +101,7 @@ import {
 import { OpenClawTranscriptSafetyStatus } from '../../../shared/openclawTranscript/constants';
 import { buildPptOutlineSystemPrompt, isPptOutlineSystemPrompt, PPT_OUTLINE_CONTENT_GUIDANCE } from '../../../shared/pptCreation/outline';
 import { OpenClawProviderId, ProviderName } from '../../../shared/providers';
+import { APP_NAME } from '../../appConstants';
 import type { Agent, CoworkExecutionMode, CoworkMessage, CoworkMessageMetadata, CoworkSession, CoworkSessionStatus, CoworkStore } from '../../coworkStore';
 import { t } from '../../i18n';
 import { MediaGenerationTool } from '../../mediaGenerationPolicy';
@@ -1780,6 +1781,13 @@ function classifyOpenClawSafeRuntimeErrorMetadata(
     return CoworkErrorI18nKey.ModelAccessDenied;
   }
 
+  if (
+    /\b403\b/.test(metadata.rawErrorPreview ?? '')
+    && /no access to model/i.test(metadata.rawErrorPreview ?? '')
+  ) {
+    return CoworkErrorI18nKey.ModelAccessDenied;
+  }
+
   // Some providers return an HTTP 200 SSE response whose terminal error text
   // contains an inner 503 capacity failure. OpenClaw can classify that text as
   // rate_limit because it also says "too many requests" or "throttled". Let
@@ -1908,6 +1916,7 @@ export function resolveOpenClawRuntimeError(
       metadataClassifiedKey === CoworkErrorI18nKey.ModelOverloaded
       || metadataClassifiedKey === CoworkErrorI18nKey.ModelServiceUnavailable
       || metadataClassifiedKey === CoworkErrorI18nKey.ProviderCooldown
+      || metadataClassifiedKey === CoworkErrorI18nKey.ToolCallingUnsupported
     )
   ) {
     consumeRecentOpenClawTokenProxyQuotaError();
@@ -2500,7 +2509,7 @@ const buildMediaReferencePromptSection = (mediaReferences?: CoworkMediaAttachmen
   if (refs.length === 0) return '';
 
   const lines = [
-    '[LobsterAI media reference mapping]',
+    `[${APP_NAME} media reference mapping]`,
     'The current user request contains explicit @ media tokens. Treat these mappings as authoritative and do not guess which uploaded attachment a token means.',
     'When calling lobsterai_image_generate or lobsterai_video_generate, pass mapped file paths or URLs as tool arguments. Do not pass @ media tokens as image, images, firstFrame, lastFrame, referenceImages, media.url, video, or videos values.',
     'For lobsterai_image_generate, prefer image with the mapped path for one referenced image and images for multiple referenced images.',
@@ -6516,7 +6525,7 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
 
   private buildSystemPromptPrefix(systemPrompt: string): string {
     return [
-      '[LobsterAI system instructions]',
+      `[${APP_NAME} system instructions]`,
       'Apply the instructions below as the highest-priority guidance for this session.',
       'If earlier LobsterAI system instructions exist, replace them with this version.',
       systemPrompt || 'No session-specific instructions apply; follow the workspace instructions in AGENTS.md.',
@@ -6579,7 +6588,7 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
     }
 
     const sections = [
-      '[Context bridge from previous LobsterAI conversation]',
+      `[Context bridge from previous ${APP_NAME} conversation]`,
       'Use this prior context for continuity. Focus your final answer on the current request.',
     ];
 
@@ -6687,7 +6696,7 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
     const client = new GatewayClient({
       url: connection.url,
       token: connection.token,
-      clientDisplayName: 'LobsterAI',
+      clientDisplayName: APP_NAME,
       clientVersion: app.getVersion(),
       mode: 'backend',
       caps: [OPENCLAW_GATEWAY_TOOL_EVENTS_CAP],

@@ -76,7 +76,7 @@ export default function SelectionLoginRequired({ source, tool, feature, contextI
     : t('desktopToolsLoginTitle').replace('{feature}', feature);
   const benefit = translationQuota
     ? t(translationQuota.unlimitedAfterLogin === true ? 'desktopToolsTranslationUnlimitedAfterLogin' : 'desktopToolsTranslationContinueAfterLogin')
-    : t('loginIntroductionPromo');
+    : t('desktopToolsLoginToContinue');
   const state = failed ? 'failed' : waiting ? 'waiting' : 'idle';
   // The card header already carries the LobsterAI mark; the prompt stays a quiet row of text and one button.
   return (
